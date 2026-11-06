@@ -46,9 +46,12 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    load();
+    const first = setTimeout(load, 0);
     const t = setInterval(load, 4000);
-    return () => clearInterval(t);
+    return () => {
+      clearTimeout(first);
+      clearInterval(t);
+    };
   }, [load]);
 
   const act = async (label: string, url: string, body?: unknown) => {
@@ -238,7 +241,7 @@ const SUGGESTIONS = ["auto-approve under 5 cents from them", "ask me above $0.20
 
 function Inbox({ s, busy, act }: { s: State; busy: string | null; act: any }) {
   const [notes, setNotes] = useState<Record<string, string>>({});
-  if (!s.pending.length) return <Panel><p className="text-muted text-sm">Nothing waiting. Allowance only asks when something is new, unusual, or above what you've taught it.</p></Panel>;
+  if (!s.pending.length) return <Panel><p className="text-muted text-sm">Nothing waiting. Allowance only asks when something is new, unusual, or above what you&apos;ve taught it.</p></Panel>;
   return (
     <div className="flex flex-col gap-3">
       {s.pending.map((p: any) => {
@@ -249,7 +252,7 @@ function Inbox({ s, busy, act }: { s: State; busy: string | null; act: any }) {
             <div className="flex flex-wrap justify-between gap-2">
               <div>
                 <div className="text-lg font-semibold">{usd(r.amount)} to {r.vendorName} <span className="text-muted font-normal text-sm">· {r.endpoint}</span></div>
-                <div className="text-muted text-sm">Agent's reason: “{p.request.task}”</div>
+                <div className="text-muted text-sm">Agent&apos;s reason: “{p.request.task}”</div>
                 <div className="text-muted text-xs font-mono mt-1">pay-to {r.payTo}</div>
               </div>
               <div className="self-start"><Badge tone="ask">needs you</Badge></div>
