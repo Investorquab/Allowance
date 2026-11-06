@@ -122,6 +122,6 @@ src/components/Dashboard   UI
 
 ## Honest notes
 
-- I couldn't find an x402 or MPP facilitator that settles on Sui, so this app runs its own verification step through Tatum. It's the same 402 flow, settled in USDC on Sui.
+- There's no mandated x402/MPP facilitator on Sui. The organisers confirmed that a standard HTTP 402 paywall, settled and verified through Tatum's Sui gateway, is the intended approach, and that's what this app does.
 - The vendors are run by this app so the demo is repeatable. Chainlens serves real Tatum data in live mode.
 - The default Walrus relayer sees memory plaintext. Use `MemWalManual` or a self-hosted relayer if that matters to you.

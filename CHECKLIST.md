@@ -31,7 +31,7 @@ Source: the event page's "What to deliver" checklist and FAQ.
 | Best Use of Agent Payments | $500 | x402-style 402 flow, **settled in USDC on Sui**, payment verified through Tatum | [ ] |
 | Social bonus (judging points) | — | Post on X/LinkedIn tagging @Tatum_io and @WalrusFoundation | [ ] |
 
-- [ ] **Ask in Tatum Discord** whether a self-run 402 vendor with real Sui USDC settlement counts for the Agent Payments bonus (no x402/MPP facilitator for Sui was found). Paste their answer here: ______
+- [x] **Asked in Tatum Discord** whether a self-run 402 vendor with real Sui USDC settlement counts for the Agent Payments bonus. Admin reply: *"There is no single mandated facilitator, you can implement standard HTTP 402 or an MPP style paywall directly and settle/verify transactions through Tatum's Sui gateway."* → **our design qualifies as is.**
 
 ## C. Judging criteria and how we score
 
