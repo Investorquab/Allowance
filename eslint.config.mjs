@@ -5,6 +5,8 @@ import nextTs from "eslint-config-next/typescript";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  // Raw Sui JSON-RPC responses are untyped; `any` is confined to adapter/parsing code.
+  { rules: { "@typescript-eslint/no-explicit-any": "warn" } },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // Default ignores of eslint-config-next:
