@@ -24,6 +24,8 @@ export async function recallFor(req: PaymentRequirement): Promise<StoredFact[]> 
     `spending rules and limits set by the user`,
     `${req.vendorName} ${req.vendor} is paid at address ${req.payTo}`,
   ];
+  // Sequential on purpose: the Walrus relayer rate-limits concurrent recalls, and firing these three
+  // in parallel made the first auto-pay's tail latency much worse (see FIELD-TEST.md).
   const seen = new Map<string, StoredFact>();
   for (const q of queries) for (const f of await memory.recall(q, 30)) seen.set(f.blobId ?? f.id, f);
   return [...seen.values()];
@@ -97,8 +99,13 @@ export async function evaluate(input: { agent: string; task: string; requirement
   return { request: req, decision, prepared };
 }
 
-/** Sign + send. Re-prepares and re-checks the dry-run right before signing (approvals can be minutes old). */
-export async function pay(requestId: string): Promise<{ digest: string; explorerUrl: string | null }> {
+/**
+ * Sign + send. Re-prepares and re-checks the dry-run right before signing, because a human approval
+ * can be minutes old. For an **immediate auto-pay**, `fresh` is the payment `evaluate` just built
+ * (milliseconds ago) and is reused — this halves the Tatum calls per payment (see FIELD-TEST.md).
+ * Either way the dry-run must still match the request exactly before anything is signed.
+ */
+export async function pay(requestId: string, fresh?: PreparedPayment): Promise<{ digest: string; explorerUrl: string | null }> {
   const { chain } = services();
   const d = db();
   const req = d.requests[requestId];
@@ -107,7 +114,7 @@ export async function pay(requestId: string): Promise<{ digest: string; explorer
   if (act.final === "paid") return { digest: act.digest!, explorerUrl: chain.explorerTxUrl(act.digest!) };
   const r = req.requirement;
   try {
-    const prepared = await chain.preparePayment(r.payTo, r.asset, r.amount);
+    const prepared = fresh ?? (await chain.preparePayment(r.payTo, r.asset, r.amount));
     const ours = prepared.dryRun.changes.find((c) => c.coinType === r.asset && c.owner.toLowerCase() === prepared.from.toLowerCase());
     if (!prepared.dryRun.ok || !ours || BigInt(ours.amount) !== -BigInt(r.amount)) throw new Error("dry-run no longer matches the request");
     const digest = await chain.executePayment(prepared);

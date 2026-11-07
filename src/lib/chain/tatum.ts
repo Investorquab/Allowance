@@ -34,6 +34,8 @@ export class TatumSuiChain implements ChainAdapter {
   readonly name = "Sui mainnet via Tatum (GraphQL)";
   /** One entry per GraphQL request — surfaced in the dashboard as the "Tatum calls" counter. */
   readonly calls: { method: string; at: string; ms: number }[] = [];
+  /** Count of requests that hit a 429 and were retried (free-plan rate limiting). For field-test metrics. */
+  retries429 = 0;
   private client: SuiGraphQLClient;
   private keypair?: Ed25519Keypair;
   private gasBudget: bigint;
@@ -68,6 +70,7 @@ export class TatumSuiChain implements ChainAdapter {
           const res = await fetch(input, init);
           this.calls.push({ method: "graphql", at: new Date().toISOString(), ms: Date.now() - t0 });
           if (res.status !== 429 || attempt >= maxRetries) return res;
+          this.retries429++;
           await sleep(700 * (attempt + 1));
         }
       };

@@ -46,14 +46,15 @@ export async function runTask(t: AgentTask, agent = "research-agent"): Promise<T
     const requirement = parsePaymentRequired(await first.json());
     if (!requirement) return { status: "error", error: "Vendor sent an unreadable 402" };
 
-    const { request, decision } = await evaluate({ agent, task: t.task, requirement, fingerprint: fingerprintOf(url) });
+    const { request, decision, prepared } = await evaluate({ agent, task: t.task, requirement, fingerprint: fingerprintOf(url) });
     const act = db().activity.find((a) => a.requestId === request.id)!;
     act.url = url;
     save();
     if (decision.action === "block") return { status: "blocked", requestId: request.id, summary: decision.summary };
     if (decision.action === "ask") return { status: "pending", requestId: request.id, summary: decision.summary };
 
-    const { digest } = await pay(request.id);
+    // Auto-pay: reuse the tx evaluate just built (see pay()); it was dry-run-matched in decide().
+    const { digest } = await pay(request.id, prepared);
     await recordAutoPaid(request, decision);
     const data = await fetchPaid(request.id, digest);
     return { status: "paid", requestId: request.id, digest, data };
