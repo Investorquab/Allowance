@@ -1,16 +1,21 @@
 @import "tailwindcss";
 
+/*
+ * Allowance — a treasury console for an AI agent.
+ * One warm accent (brass gold) carries both the brand and "needs your attention".
+ * Green = settled/safe, red = stopped. Numbers are the hero: tabular, mono for hashes.
+ */
 :root {
-  --bg: #0b0d12;
-  --panel: #12151c;
-  --panel-2: #181c25;
-  --line: #262b36;
-  --text: #e8eaf0;
-  --muted: #8a92a6;
-  --accent: #5eead4;
-  --pay: #34d399;
-  --ask: #fbbf24;
-  --block: #f87171;
+  --bg: #0b0f14;      /* deep blue-ink, not pure black */
+  --panel: #10161d;
+  --panel-2: #161e27;
+  --line: #212c37;
+  --text: #edf1f4;
+  --muted: #8a97a6;
+  --accent: #e6b54a;  /* brass gold — money, trust, attention */
+  --pay: #46c08a;     /* settled */
+  --ask: #e6b54a;     /* an ask IS a call for attention — same gold, on purpose */
+  --block: #e46b64;   /* stopped */
 }
 
 @theme inline {
@@ -24,12 +29,24 @@
   --color-pay: var(--pay);
   --color-ask: var(--ask);
   --color-block: var(--block);
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
+  /* faint vault-paper grain: two off-axis radial glows, very low alpha */
+  background-image:
+    radial-gradient(1100px 600px at 12% -5%, rgba(230, 181, 74, 0.05), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, rgba(70, 192, 138, 0.04), transparent 55%);
+  background-attachment: fixed;
 }
+
+/* Numbers read as a ledger: tabular, even-width digits. */
+.nums { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+
+::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+
+* { scrollbar-color: var(--line) transparent; }

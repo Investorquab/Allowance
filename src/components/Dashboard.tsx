@@ -98,16 +98,21 @@ export default function Dashboard() {
   const pendingCount = s.pending.length;
   return (
     <Shell>
-      <header className="flex flex-wrap items-center gap-3 justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Allowance</h1>
-          <p className="text-muted text-sm">Your agent pays for what it needs, asks you about the rest, and remembers your rules.</p>
+      <header className="flex flex-wrap items-end justify-between gap-4 pb-5 border-b border-line">
+        <div className="flex items-center gap-3">
+          <div className="grid place-items-center w-11 h-11 rounded-xl bg-accent/12 border border-accent/30 text-accent font-mono text-xl leading-none select-none">₳</div>
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight leading-none">Allowance</h1>
+            <p className="text-muted text-sm mt-1.5 max-w-md">A spending steward for your AI agent — it pays the routine, stops the rest, and remembers why.</p>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <Badge tone={s.mode === "live" ? "ok" : "info"}>{s.mode === "live" ? "LIVE · Sui mainnet" : "SIM · offline"}</Badge>
-          <Badge tone="info">{s.chain}</Badge>
-          <Badge tone="info">{s.memory}</Badge>
-          <Badge tone={s.balanceError ? "block" : "info"}>Agent wallet {s.balanceFmt ?? "?"}</Badge>
+        <div className="text-right">
+          <div className="text-muted text-xs">Agent balance</div>
+          <div className={`text-3xl font-semibold nums leading-tight ${s.balanceError ? "text-block" : "text-accent"}`}>{s.balanceFmt ?? "—"}</div>
+          <div className="flex flex-wrap justify-end items-center gap-1.5 mt-2 text-xs">
+            <Badge tone={s.mode === "live" ? "ok" : "info"}>{s.mode === "live" ? "Live · Sui mainnet" : "Sim · offline"}</Badge>
+            <Badge tone="info">{s.mode === "live" ? "Walrus memory" : "Local memory"}</Badge>
+          </div>
         </div>
       </header>
 
@@ -151,12 +156,12 @@ function Btn({ children, onClick, disabled, tone = "default" }: { children: Reac
   return <button onClick={onClick} disabled={disabled} className={`rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-40 ${c}`}>{children}</button>;
 }
 
-function Stat({ label, value, sub }: { label: string; value: React.ReactNode; sub?: React.ReactNode }) {
+function Stat({ label, value, sub, accent }: { label: string; value: React.ReactNode; sub?: React.ReactNode; accent?: boolean }) {
   return (
-    <div className="rounded-xl border border-line bg-panel p-4">
-      <div className="text-muted text-xs uppercase tracking-wide">{label}</div>
-      <div className="text-2xl font-semibold mt-1 tabular-nums">{value}</div>
-      {sub && <div className="text-muted text-xs mt-1">{sub}</div>}
+    <div className={`rounded-xl border bg-panel p-4 ${accent ? "border-accent/30 bg-accent/[0.04]" : "border-line"}`}>
+      <div className="text-muted text-xs">{label}</div>
+      <div className={`text-[26px] font-semibold mt-1.5 nums leading-none ${accent ? "text-accent" : ""}`}>{value}</div>
+      {sub && <div className="text-muted text-xs mt-2">{sub}</div>}
     </div>
   );
 }
@@ -165,7 +170,7 @@ function Overview({ s, busy, act, goInbox }: { s: State; busy: string | null; ac
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Stat label="Handled without you" value={`${s.totals.autoRate}%`} sub={`${s.totals.requests} requests`} />
+        <Stat accent label="Handled without you" value={`${s.totals.autoRate}%`} sub={`${s.totals.requests} requests seen`} />
         <Stat label="Spent" value={usd(s.totals.spent)} sub={`${s.totals.paid} payments · today ${usd(s.spentToday)}`} />
         <Stat label="Blocked" value={s.totals.blocked} sub="scams, duplicates, redirects" />
         <Stat label="Memories" value={s.totals.memories} sub={s.mode === "live" ? `${s.totals.onWalrus} on Walrus mainnet` : "local (sim)"} />
@@ -284,8 +289,8 @@ function Inbox({ s, busy, act }: { s: State; busy: string | null; act: any }) {
               <div className="self-start"><Badge tone="ask">needs you</Badge></div>
             </div>
             <div className="mt-3 grid md:grid-cols-2 gap-4">
-              <div><h3 className="text-xs uppercase tracking-wide text-muted mb-1.5">Checks</h3><Checks checks={p.decision.checks} /></div>
-              <div><h3 className="text-xs uppercase tracking-wide text-muted mb-1.5">Memories it recalled</h3><Memories items={p.decision.memoriesUsed} /></div>
+              <div><h3 className="text-xs font-medium text-muted mb-1.5">Checks</h3><Checks checks={p.decision.checks} /></div>
+              <div><h3 className="text-xs font-medium text-muted mb-1.5">Memories it recalled</h3><Memories items={p.decision.memoriesUsed} /></div>
             </div>
             <div className="mt-4 flex flex-col gap-2">
               <input value={note} onChange={(e) => setNotes({ ...notes, [p.requestId]: e.target.value })}
@@ -323,9 +328,9 @@ function Activity({ s }: { s: State }) {
             </button>
             {open === a.requestId && (
               <div className="px-4 pb-4 grid md:grid-cols-2 gap-4 bg-panel-2/40">
-                <div className="pt-3"><h3 className="text-xs uppercase tracking-wide text-muted mb-1.5">Checks</h3><Checks checks={a.checks} /></div>
+                <div className="pt-3"><h3 className="text-xs font-medium text-muted mb-1.5">Checks</h3><Checks checks={a.checks} /></div>
                 <div className="pt-3 space-y-3">
-                  <div><h3 className="text-xs uppercase tracking-wide text-muted mb-1.5">Memories used</h3><Memories items={a.memoriesUsed} /></div>
+                  <div><h3 className="text-xs font-medium text-muted mb-1.5">Memories used</h3><Memories items={a.memoriesUsed} /></div>
                   {a.digest && (
                     <div className="text-xs">
                       <span className="text-muted">tx </span>
