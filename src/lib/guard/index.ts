@@ -31,6 +31,42 @@ export async function recallFor(req: PaymentRequirement): Promise<StoredFact[]> 
   return [...seen.values()];
 }
 
+/**
+ * The "memory switch": decide the same payment twice — once with everything recalled from Walrus,
+ * once with no memory at all — to show, side by side, that memory is what changes the outcome.
+ * Read-only: it recalls and decides, but never prepares a tx, pays, or writes anything.
+ */
+export async function compareMemory(requirement: PaymentRequirement, task: string) {
+  const { chain, config } = services();
+  const req: PaymentRequest = {
+    id: newId("req"), createdAt: new Date().toISOString(), agent: "preview", task, requirement, fingerprint: "preview",
+  };
+  const facts = await recallFor(requirement);
+  const key = { vendor: requirement.vendor, endpoint: requirement.endpoint };
+  const common = {
+    request: req,
+    mode: config.mode,
+    agentAddress: chain.agentAddress(),
+    expectedNetwork: config.network,
+    expectedAsset: config.usdcCoinType,
+    spentToday: spentToday().toString(),
+    recentFingerprints: [],
+    now: new Date(),
+    limits: {
+      hardPerPayment: config.hardPerPayment,
+      hardDaily: config.hardDaily,
+      duplicateWindowMin: config.duplicateWindowMin,
+      priceSpikeFactor: config.priceSpikeFactor,
+    },
+  };
+  return {
+    requirement,
+    memoriesRecalled: facts.length,
+    withMemory: decide({ ...common, policy: derivePolicy(facts, key, config.learnAfterApprovals) }),
+    withoutMemory: decide({ ...common, policy: derivePolicy([], key, config.learnAfterApprovals) }),
+  };
+}
+
 export async function evaluate(input: { agent: string; task: string; requirement: PaymentRequirement; fingerprint: string }) {
   const { chain, config } = services();
   const req: PaymentRequest = { id: newId("req"), createdAt: new Date().toISOString(), ...input };

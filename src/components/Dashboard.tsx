@@ -29,7 +29,7 @@ const postWithAuth = (url: string, body?: unknown) => {
   });
 };
 
-const TABS = ["Overview", "Inbox", "Activity", "Memory", "Try it"] as const;
+const TABS = ["Overview", "Inbox", "Activity", "Memory", "Memory switch", "Try it"] as const;
 type Tab = (typeof TABS)[number];
 
 const LEVEL = {
@@ -132,6 +132,7 @@ export default function Dashboard() {
       {tab === "Inbox" && <Inbox s={s} busy={busy} act={act} />}
       {tab === "Activity" && <Activity s={s} />}
       {tab === "Memory" && <Memory s={s} busy={busy} act={act} />}
+      {tab === "Memory switch" && <MemorySwitch s={s} />}
       {tab === "Try it" && <TryIt s={s} busy={busy} act={act} />}
 
       <footer className="text-muted text-xs pt-6 border-t border-line">
@@ -381,6 +382,68 @@ function Memory({ s, busy, act }: { s: State; busy: string | null; act: any }) {
           </ul>
         )}
       </Panel>
+    </div>
+  );
+}
+
+function ActionPill({ action }: { action: string }) {
+  const tone = action === "pay" ? "ok" : action === "block" ? "block" : "ask";
+  const label = action === "pay" ? "Pays on its own" : action === "block" ? "Blocks" : "Asks you";
+  return <span className={`inline-flex items-center rounded-md border px-2.5 py-1 text-xs font-semibold ${LEVEL[tone as keyof typeof LEVEL]}`}>{label}</span>;
+}
+
+function DecisionCard({ title, subtitle, decision, highlight }: { title: string; subtitle: string; decision: any; highlight?: boolean }) {
+  return (
+    <div className={`rounded-xl border p-4 ${highlight ? "border-accent/40 bg-accent/[0.04]" : "border-line bg-panel"}`}>
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <div>
+          <div className="font-semibold">{title}</div>
+          <div className="text-muted text-xs">{subtitle}</div>
+        </div>
+        <ActionPill action={decision.action} />
+      </div>
+      <p className="text-sm text-text/90 mb-3">{decision.summary}</p>
+      <div className="space-y-3">
+        <div><h3 className="text-xs font-medium text-muted mb-1.5">Checks</h3><Checks checks={decision.checks} /></div>
+        <div><h3 className="text-xs font-medium text-muted mb-1.5">Memories it used</h3><Memories items={decision.memoriesUsed} /></div>
+      </div>
+    </div>
+  );
+}
+
+function MemorySwitch({ s }: { s: State }) {
+  const [res, setRes] = useState<any>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const run = async (label: string, path: string) => {
+    setBusy(label);
+    try {
+      const r = await fetch("/api/compare", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path }) });
+      setRes(await r.json());
+    } catch { setRes({ error: "Could not compare — is the app running?" }); } finally { setBusy(null); }
+  };
+  const scenarios = [
+    { label: "Chainlens wallet report", path: `/api/vendors/chainlens/wallet-report?address=0x${rnd()}` },
+    { label: "DataPulse market brief", path: `/api/vendors/datapulse/market-brief?token=SUI&n=${rnd().slice(0, 6)}` },
+  ];
+  return (
+    <div className="flex flex-col gap-3">
+      <Panel>
+        <h2 className="font-semibold">Why memory matters</h2>
+        <p className="text-muted text-sm mt-1 mb-3">The same payment, decided two ways — with everything Allowance has learned (recalled from {s.mode === "live" ? "Walrus" : "memory"}) and with no memory at all. Memory is what turns &ldquo;ask me every time&rdquo; into &ldquo;just handle it&rdquo;.</p>
+        <div className="flex flex-wrap gap-2">
+          {scenarios.map((x) => <Btn key={x.label} tone="primary" disabled={!!busy} onClick={() => run(x.label, x.path)}>{busy === x.label ? "Deciding…" : `Compare: ${x.label}`}</Btn>)}
+        </div>
+      </Panel>
+      {res?.error && <Panel><p className="text-block text-sm">{res.error}</p></Panel>}
+      {res && !res.error && (
+        <>
+          <div className="text-muted text-xs px-1">{usd(res.requirement.amount)} to {res.requirement.vendorName} · recalled <span className="text-accent">{res.memoriesRecalled}</span> {res.memoriesRecalled === 1 ? "memory" : "memories"} from {s.mode === "live" ? "Walrus mainnet" : "local memory"}</div>
+          <div className="grid md:grid-cols-2 gap-3">
+            <DecisionCard title="Without memory" subtitle="a fresh agent — nothing learned" decision={res.withoutMemory} />
+            <DecisionCard title="With memory" subtitle={`recalled ${res.memoriesRecalled} from Walrus`} decision={res.withMemory} highlight />
+          </div>
+        </>
+      )}
     </div>
   );
 }
