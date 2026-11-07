@@ -1,5 +1,7 @@
 # Allowance
 
+**▶ Live on Sui mainnet: https://allowance.185-7-81-139.sslip.io** — a deployed agent-payment service; its `/api/vendors/*` endpoints answer real HTTP 402 and settle USDC on Sui.
+
 **Your AI agent's spending allowance.** It pays for routine things by itself, asks you about anything new or unusual, and **learns your rules from every approve or deny**. Each payment settles in **USDC on Sui mainnet** and is checked through **Tatum's Sui RPC**. What it learns is stored in **Walrus Memory**, so your rules follow you to any agent.
 
 Built for **Total Recall (Tatum × Walrus)**, Track 02 *Smart Agents for Real Life*. Also entered for *Best Walrus Memory* and *Best Use of Agent Payments*. The requirements are tracked in [CHECKLIST.md](./CHECKLIST.md).
