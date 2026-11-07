@@ -107,6 +107,34 @@ npm test                        # 25 tests, including a full simulated week
 
 The "Simulate a week" button produces the learning chart: asks per day fall from 3 to 0.
 
+## Use it from your own agent
+
+Point your agent at Allowance instead of letting it pay 402s directly. One call decides and (if your
+rules allow) pays, settling USDC on Sui and verifying the tx through Tatum:
+
+```js
+// Your agent wants some paid data. Ask Allowance to handle the payment.
+const res = await fetch("https://your-allowance/api/agent/run", {
+  method: "POST",
+  headers: { "content-type": "application/json", authorization: `Bearer ${ADMIN_TOKEN}` },
+  body: JSON.stringify({
+    task: "why I need this",                       // shown to the human if it has to ask
+    path: "/api/vendors/chainlens/wallet-report?address=0x…", // any 402 resource on this host
+  }),
+});
+const out = await res.json();
+// out.status: "paid" (auto, with the data) · "pending" (asked you — approve in the dashboard/Telegram)
+//           · "blocked" (scam/duplicate/over-limit) · "free"
+```
+
+- **`paid`** → `out.data` is the result; `out.digest` opens on suiscan.
+- **`pending`** → Allowance asked you. Approve in the dashboard or from Telegram (`npm run telegram`);
+  it learns the rule so next time it just pays.
+- **`blocked`** → it refused (look-alike payee, redirected invoice, over your cap, duplicate…).
+
+The rules that drive these decisions live in **Walrus**, so they follow the agent to any machine. See
+`DEPLOY.md` to run this on your own server, and `FIELD-TEST.md` for real mainnet latency/cost numbers.
+
 ## Project layout
 
 ```
