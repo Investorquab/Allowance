@@ -74,13 +74,52 @@ async function pollUpdates() {
       const u = await tg("getUpdates", { offset, timeout: 30, allowed_updates: ["message", "callback_query"] });
       for (const up of u.result || []) {
         offset = up.update_id + 1;
-        if (up.message?.chat?.id) {
-          CHAT = String(up.message.chat.id);
-          await tg("sendMessage", { chat_id: CHAT, text: "Connected. You'll get payment approvals here." });
-        }
+        if (up.message?.chat?.id) await onMessage(up.message);
         if (up.callback_query) await onTap(up.callback_query);
       }
     } catch (e) { await new Promise((r) => setTimeout(r, 2000)); void e; }
+  }
+}
+
+const HELP = "Allowance — I handle your agent's payments and ask you about anything unusual.\n\nCommands:\n/status — balance, what I've handled, what's waiting\n/rules — the rules I'm following\n/brief — today's summary";
+
+async function onMessage(msg: any) {
+  CHAT = String(msg.chat.id);
+  const text = String(msg.text || "").trim().toLowerCase();
+  const send = (t: string) => tg("sendMessage", { chat_id: CHAT, text: t, parse_mode: "Markdown" });
+
+  if (text === "/start" || text === "/help" || text === "") return send(HELP);
+
+  const s = await getState();
+  if (!s) return send("Can't reach the app right now.");
+
+  if (text.startsWith("/status")) {
+    const t = s.totals || {};
+    return send(`*Allowance* · ${s.mode}\nBalance: *${s.balanceFmt ?? "—"}*\nHandled without you: *${t.autoRate ?? 0}%* (${t.requests ?? 0} seen)\nSpent: ${usd(String(t.spent ?? 0))} · Blocked: ${t.blocked ?? 0}\nMemories on Walrus: ${t.onWalrus ?? 0}\nWaiting for you: *${(s.pending || []).length}*`);
+  }
+  if (text.startsWith("/rules")) {
+    const rules = (s.facts || []).filter((f: any) => f.fact?.kind === "rule").map((f: any) => `• ${f.text}`);
+    return send(rules.length ? `*Rules I'm following:*\n${rules.join("\n")}` : "No explicit rules yet — I'm learning from your approvals.");
+  }
+  if (text.startsWith("/brief")) {
+    const lines = s.brief?.lines || [];
+    return send(lines.length ? `*Morning brief*\n${lines.join("\n")}` : "Nothing to report yet.");
+  }
+  return send(HELP);
+}
+
+// Push a morning brief once a day, after TELEGRAM_BRIEF_HOUR (server local time). Starts tomorrow.
+let lastBriefDay = new Date().toISOString().slice(0, 10);
+async function maybeDailyBrief() {
+  if (!CHAT) return;
+  const now = new Date();
+  const day = now.toISOString().slice(0, 10);
+  const hour = Number(process.env.TELEGRAM_BRIEF_HOUR ?? "8");
+  if (day !== lastBriefDay && now.getHours() >= hour) {
+    lastBriefDay = day;
+    const s = await getState();
+    const lines = s?.brief?.lines || [];
+    if (lines.length) await tg("sendMessage", { chat_id: CHAT, text: `☀️ *Morning brief*\n${lines.join("\n")}`, parse_mode: "Markdown" });
   }
 }
 
@@ -113,5 +152,6 @@ async function main() {
   else console.log(`Pushing approvals to chat ${CHAT}.`);
   pollUpdates();                       // taps + messages (long-poll)
   setInterval(pushPending, 3000);      // new asks → phone
+  setInterval(maybeDailyBrief, 60000); // once-a-day morning brief
 }
 main();

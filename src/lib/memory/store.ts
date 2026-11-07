@@ -9,6 +9,8 @@ export interface MemoryStore {
   recall(query: string, limit?: number): Promise<StoredFact[]>;
   /** Local mirror of everything written (fast UI listing). */
   all(): StoredFact[];
+  /** Repopulate the local mirror from the source of truth; returns the authoritative count. */
+  rebuild?(): Promise<{ onWalrus: number; mirrored: number }>;
 }
 
 function mirror(fact: Fact, blobId?: string): StoredFact {
@@ -45,10 +47,52 @@ export class LocalMemory implements MemoryStore {
 export class WalrusMemory implements MemoryStore {
   readonly name = "Walrus Memory (mainnet)";
   private mw: ReturnType<typeof MemWal.create>;
+  private namespace: string;
   lastError?: string;
 
   constructor(opts: { key: string; accountId: string; serverUrl?: string; namespace: string }) {
+    this.namespace = opts.namespace;
     this.mw = MemWal.create({ key: opts.key, accountId: opts.accountId, serverUrl: opts.serverUrl, namespace: opts.namespace });
+  }
+
+  /**
+   * "Your memory on Walrus." Lists every memory this account holds in our namespace (authoritative
+   * count), then pulls their content back via recall and merges anything missing into the local
+   * mirror. Proves the memory is portable and owned on Walrus, not trapped in this server's files.
+   */
+  async rebuild() {
+    const blobIds = new Set<string>();
+    let cursor: string | undefined;
+    for (let i = 0; i < 25; i++) {
+      const page = await this.mw.listMemories({ cursor, namespace: this.namespace, limit: 500 });
+      for (const m of page.memories) blobIds.add(m.blob_id);
+      cursor = page.next_cursor ?? undefined;
+      if (!page.has_more) break;
+    }
+    const onWalrus = blobIds.size;
+
+    const existing = new Set(db().facts.map((f) => f.blobId).filter(Boolean) as string[]);
+    const queries = [
+      "payment decision approved auto-paid denied blocked",
+      "spending rule limit auto-approve daily budget never pay",
+      "vendor payee is paid at address",
+      "chainlens datapulse allowance payment",
+    ];
+    let mirrored = 0;
+    for (const q of queries) {
+      try {
+        const r = await this.mw.recall({ query: q, limit: 500 });
+        for (const hit of r.results) {
+          if (existing.has(hit.blob_id)) continue;
+          const fact = decodeFact(hit.text);
+          if (!fact) continue;
+          existing.add(hit.blob_id);
+          mirror(fact, hit.blob_id);
+          mirrored++;
+        }
+      } catch { /* skip a failed query, keep going */ }
+    }
+    return { onWalrus, mirrored };
   }
 
   async health() {

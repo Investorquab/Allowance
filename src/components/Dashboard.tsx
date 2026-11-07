@@ -369,7 +369,18 @@ function Memory({ s, busy, act }: { s: State; busy: string | null; act: any }) {
         </div>
       </Panel>
       <Panel className="p-0">
-        <div className="px-4 py-3 border-b border-line flex justify-between text-sm"><span className="font-semibold">What Allowance remembers</span><span className="text-muted">{s.facts.length} memories</span></div>
+        <div className="px-4 py-3 border-b border-line flex flex-wrap items-center justify-between gap-2 text-sm">
+          <span className="font-semibold">What Allowance remembers <span className="text-muted font-normal">· {s.facts.length}</span></span>
+          <div className="flex items-center gap-2">
+            {s.mode === "live" && <Btn disabled={!!busy} onClick={() => act("sync", "/api/memory/sync")}>{busy === "sync" ? "Syncing…" : "Sync from Walrus"}</Btn>}
+            <Btn disabled={!s.facts.length} onClick={() => {
+              const blob = new Blob([JSON.stringify(s.facts, null, 2)], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a"); a.href = url; a.download = "allowance-memory.json"; a.click(); URL.revokeObjectURL(url);
+            }}>Export</Btn>
+          </div>
+        </div>
+        <p className="px-4 pt-2 text-muted text-xs">{s.mode === "live" ? "Your memory lives on Walrus, not this server. Sync pulls it all back here — proof it's portable and yours." : "Local memory (sim mode)."}</p>
         {!s.facts.length ? <p className="text-muted text-sm p-4">Nothing yet.</p> : (
           <ul className="divide-y divide-line">
             {s.facts.map((f: any) => (
