@@ -149,6 +149,10 @@ export async function pay(requestId: string, fresh?: PreparedPayment): Promise<{
   if (!req || !act) throw new Error("unknown request");
   if (act.final === "paid") return { digest: act.digest!, explorerUrl: chain.explorerTxUrl(act.digest!) };
   const r = req.requirement;
+  // Don't spend on an offer the vendor will no longer honour: the 402 nonce expires (A6), so an
+  // approval that arrives after expiry would pay but get no data. Refuse before touching the chain.
+  if (new Date(r.expiresAt).getTime() < Date.now())
+    throw new Error("This payment offer expired before it was approved — ask the vendor for a fresh quote and try again.");
   try {
     const prepared = fresh ?? (await chain.preparePayment(r.payTo, r.asset, r.amount));
     const ours = prepared.dryRun.changes.find((c) => c.coinType === r.asset && c.owner.toLowerCase() === prepared.from.toLowerCase());
