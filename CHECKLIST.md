@@ -78,11 +78,12 @@ Source: the event page's "What to deliver" checklist and FAQ.
 - [x] Screenshot the dashboard and the memories for the blog (Overview, Activity, Memory, suiscan tx)
 
 ### Stretch (only if time allows)
-- [ ] Telegram or Discord approvals (reply approve or deny from your phone)
-- [ ] Guard a real third-party x402 API (shows Allowance works with outside vendors)
+- [x] **Telegram approvals** (reply approve/deny from your phone) — `scripts/telegram-bot.ts`, `npm run telegram`. Built + token-ready; needs `TELEGRAM_BOT_TOKEN` to run live.
+- [ ] Guard a real third-party x402 API + add Base as a second settlement chain (in progress)
 - [ ] Use Walrus `analyze()` to turn free-text notes into rules
 - [ ] Deploy (Railway or Fly, which need a persistent disk for `.data/`) for a live URL
-- [ ] Mainnet field-test report: latency, Tatum call counts, 429s, gas cost per payment
+- [x] **Mainnet field-test report**: latency, Tatum call counts, 429s, gas cost per payment — see `FIELD-TEST.md` (12/12 live payments, 100%, ~33s/payment on free tier)
+- [x] **UI design pass**: treasury-console identity (gold-on-ink, Geist type, balance as hero, tabular numerals)
 
 ## F. Submission assets
 - [x] README: problem, how it works, how Tatum and Walrus are used, setup, demo
