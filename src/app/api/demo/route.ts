@@ -1,3 +1,4 @@
+import { requireAuth } from "@/lib/auth";
 import { getConfig } from "@/lib/config";
 import { runDay, simulateWeek } from "@/lib/demo";
 import { resetServices } from "@/lib/services";
@@ -5,6 +6,8 @@ import { resetDb } from "@/lib/store";
 
 /** { action: "run-day" | "simulate-week" | "reset" } */
 export async function POST(request: Request) {
+  const denied = requireAuth(request);
+  if (denied) return denied;
   const { action } = (await request.json().catch(() => ({}))) as { action?: string };
   try {
     if (action === "run-day") return Response.json(await runDay({ autoAnswer: false }));

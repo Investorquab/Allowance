@@ -5,6 +5,9 @@ import { TatumSuiChain } from "./chain/tatum";
 import { requirementFor, VENDORS } from "./vendors";
 import { decodePayment, encodePaymentResponse, paymentRequired } from "./x402";
 
+/** A 402 offer is only honoured for 10 minutes after it is issued (A6). */
+const NONCE_TTL_MS = 10 * 60_000;
+
 /**
  * The paid API (seller side). Works for any HTTP client that speaks the 402 flow — not just our agent.
  * Payment is verified on Sui through Tatum (sui_getTransactionBlock) and each digest can be used once.
@@ -28,11 +31,23 @@ export async function handleVendor(request: Request, vendorId: string, endpoint:
   if (!req) return Response.json({ error: "unknown vendor or endpoint" }, { status: 404 });
   const issued = d.nonces[payment.payload.nonce];
   if (!issued || issued.requirementHash !== url.toString()) return paymentRequired(req, "unknown or mismatched nonce");
+  // A6: a 402 offer expires 10 min after it was issued; drop it and make the client fetch a fresh one.
+  if (Date.now() - new Date(issued.issuedAt).getTime() > NONCE_TTL_MS) {
+    delete d.nonces[payment.payload.nonce];
+    save();
+    return paymentRequired(req, "payment request expired — fetch a new 402");
+  }
   if (payment.network !== config.network) return paymentRequired(req, `wrong network ${payment.network}`);
   if (d.usedDigests.includes(payment.payload.digest)) return paymentRequired(req, "payment already used");
 
   const v = await chain.verifyPayment(payment.payload.digest, { payTo: req.payTo, coinType: req.asset, amount: req.amount });
   if (!v.ok) return paymentRequired(req, `payment not valid: ${v.reason}`);
+  // A6: the payer claimed in the header must be the real on-chain sender (no borrowing someone else's tx).
+  if (payment.payload.payer && v.payer && payment.payload.payer.toLowerCase() !== v.payer.toLowerCase())
+    return paymentRequired(req, "payer does not match the transaction sender");
+  // A6: "exact" scheme — reject overpayment too (underpayment is already caught by verifyPayment).
+  if (v.amount !== undefined && BigInt(v.amount) !== BigInt(req.amount))
+    return paymentRequired(req, `amount mismatch: paid ${v.amount}, required exactly ${req.amount}`);
   d.usedDigests.push(payment.payload.digest);
   delete d.nonces[payment.payload.nonce];
   const rec = d.payments.find((p) => p.digest === payment.payload.digest);
@@ -50,14 +65,14 @@ async function serve(vendorId: string, endpoint: string, url: URL) {
   const { chain, config } = services();
   const address = url.searchParams.get("address") ?? "";
   const token = url.searchParams.get("token") ?? "SUI";
-  const rpc = chain instanceof TatumSuiChain ? chain.rpc : null;
+  const tatum = chain instanceof TatumSuiChain ? chain : null;
 
   if (vendorId === "chainlens") {
     if (endpoint === "portfolio" || endpoint === "wallet-report") {
-      if (rpc && address) {
-        const balances = await rpc.getAllBalances(address);
-        const recent = endpoint === "wallet-report" ? await rpc.queryTxs({ FromAddress: address }, 10, true) : null;
-        return { address, balances, recentTxs: recent?.data.map((t) => t.digest) ?? undefined, source: "Tatum Sui RPC (mainnet)" };
+      if (tatum && address) {
+        const balances = await tatum.allBalances(address);
+        const recentTxs = endpoint === "wallet-report" ? await tatum.recentOutgoing(address, 10) : undefined;
+        return { address, balances, recentTxs, source: "Tatum Sui RPC (mainnet, GraphQL)" };
       }
       const seed = parseInt(crypto.createHash("md5").update(address).digest("hex").slice(0, 6), 16);
       return { address, balances: [{ coinType: "0x2::sui::SUI", totalBalance: String(seed * 1000) }, { coinType: config.usdcCoinType, totalBalance: String(seed % 90000) }], source: "simulated" };

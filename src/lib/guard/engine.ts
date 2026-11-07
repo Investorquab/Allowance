@@ -5,6 +5,8 @@ import type { DerivedPolicy } from "./policy";
 export interface EngineInput {
   request: PaymentRequest;
   policy: DerivedPolicy;
+  /** "live" makes demo-attack requests an unconditional block (A2). Defaults to non-live. */
+  mode?: "sim" | "live";
   agentAddress: string;
   expectedNetwork: string;
   expectedAsset: string;
@@ -41,6 +43,11 @@ export function decide(input: EngineInput): Decision {
     checks.push({ level, code, message });
     for (const f of facts) used.set(f.id, f);
   };
+
+  // ── 0. Demo-attack guard (A2): in live mode, never send real USDC to a built-in
+  //    look-alike vendor or a redirected invoice, even before the real vendor is known. ──
+  if (input.mode === "live" && req.demoAttack)
+    add("block", "DEMO_ATTACK", `${req.vendorName} here is a built-in demo attack (look-alike address or redirected invoice). Allowance will not send real USDC to an address nobody controls.`);
 
   // ── 1. Hard limits (set by a human in config; memory can never raise these) ──
   if (amt > big(limits.hardPerPayment)) add("block", "HARD_PER_PAYMENT", `${fmtUsd(amt)} is over the hard per-payment cap of ${fmtUsd(limits.hardPerPayment)}.`);

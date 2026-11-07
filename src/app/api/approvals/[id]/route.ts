@@ -1,8 +1,11 @@
 import { fetchPaid } from "@/lib/agent";
+import { requireAuth } from "@/lib/auth";
 import { resolve } from "@/lib/guard";
 
 /** Human answers an ask: { outcome: "approved" | "denied", note?: string } */
 export async function POST(request: Request, ctx: { params: Promise<{ id: string }> }) {
+  const denied = requireAuth(request);
+  if (denied) return denied;
   const { id } = await ctx.params;
   const body = (await request.json().catch(() => null)) as { outcome?: string; note?: string } | null;
   if (body?.outcome !== "approved" && body?.outcome !== "denied") return Response.json({ error: "outcome must be approved or denied" }, { status: 400 });

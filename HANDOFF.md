@@ -15,11 +15,13 @@ The complete guide to continuing Allowance on your own machine. It covers where 
 | Sim mode (offline ledger + local memory) | ✅ Works end to end, including "Simulate a week" |
 | Dashboard (Overview, Inbox, Activity, Memory, Try it) | ✅ Built, checked at desktop and phone width |
 | Production build, typecheck, lint | ✅ Clean (lint shows `any` warnings only) |
-| **Live mode: Tatum Sui RPC on mainnet** | ⚠️ **Code written, never run.** The build sandbox had no network access to Sui |
-| **Live mode: Walrus Memory on mainnet** | ⚠️ **Code written, never run** |
+| **Live mode: Tatum Sui RPC on mainnet** | ✅ **Ported to GraphQL + verified live (reads, build, dry-run).** Sui deprecated JSON-RPC; `tatum.ts` now uses `SuiGraphQLClient`. `check:live` all-green. Execute mutation still to confirm at L4 (moves real USDC) |
+| **Live mode: Walrus Memory on mainnet** | ✅ **Verified live.** `check:live` writes a blob + recalls it |
 | Organiser confirmation for the payments bonus | ✅ "Implement standard HTTP 402… settle/verify through Tatum's Sui gateway". That is our design |
 
-**Main job now:** get live mode working (§1–§2), fix the P0 and P1 audit items (§4), then run the live tests (§5.3).
+**Main job now:** live mode is working through §5.3 L3 (reads + dry-run confirmed on mainnet, 2026-11-07). Remaining: run live test **L4** (first real payment — confirms the execute mutation on Tatum's GraphQL gateway), then L5–L10, record evidence, and submit (§6).
+
+> **Note (2026-11-07):** Tatum's Sui gateway is **GraphQL-only** now (Sui deprecated JSON-RPC network-wide). `src/lib/chain/tatum.ts` was rewritten from the JSON-RPC client to `@mysten/sui`'s unified `SuiGraphQLClient`. Keep `SUI_RPC_URL` as the bare host (`https://sui-mainnet.gateway.tatum.io`); the adapter appends `/graphql`. The client uses a throttled fetch (free plan = 3 req/s).
 
 ---
 
@@ -156,28 +158,33 @@ test/                          engine, learn/encoding, full simulated week
 Tick these as you fix them. Add a test for each fix where possible.
 
 ### P0: must fix before live use or any deploy
-- [ ] **A1. API routes have no auth.** Anyone who can reach the server can approve payments (`/api/approvals/[id]`), run the agent and add rules. **Fix:** add `ALLOWANCE_ADMIN_TOKEN`. Require `Authorization: Bearer <token>` on every POST route *except* `/api/vendors/*` (vendors must stay public). The dashboard reads the token once into memory (prompt or env). Until this is fixed, **run only on localhost**, never deploy publicly.
-- [ ] **A2. Live demo can pay an address nobody controls.** In live mode:
+- [x] **A1. API routes have no auth.** Anyone who can reach the server can approve payments (`/api/approvals/[id]`), run the agent and add rules. **Fix:** add `ALLOWANCE_ADMIN_TOKEN`. Require `Authorization: Bearer <token>` on every POST route *except* `/api/vendors/*` (vendors must stay public). The dashboard reads the token once into memory (prompt or env). Until this is fixed, **run only on localhost**, never deploy publicly.
+  - **Done.** `src/lib/auth.ts#requireAuth` guards the four admin POST routes (`approvals/[id]`, `agent/run`, `demo`, `memory`); vendor routes stay public (GET). When `ALLOWANCE_ADMIN_TOKEN` is unset it's allowed in sim (local dev) but **refused in live**. Dashboard sends `Authorization: Bearer <token>` and prompts once on a 401 (stored in `localStorage`). Set the token in `.env.local` (`openssl rand -hex 32`). Tests: `test/auth.test.ts` (401 without/with wrong token, live-without-token refused).
+- [x] **A2. Live demo can pay an address nobody controls.** In live mode:
   - the "Redirected invoice" scenario (`payto=new` → `simAddress(...)`)
   - the scam vendor `datapu1se` (look-alike address)
 
   Both are only *blocked* once the real vendor is already in memory. If you run them first, they come up as `NEW_PAYEE` → **ask**, and approving them would send real USDC to an unowned address. **Fix:** in `vendors.ts`, mark both as `demoAttack: true`. In `engine.ts` (or `evaluate`), always **block** in live mode when the payee is a demo-attack address, with a clear message. Add a test. Also disable those "Try it" buttons until the real vendor is known.
-- [ ] **A3. Balance polling burns Tatum credits.** `/api/state` calls `getBalance` every 4 s per open tab. **Fix:** cache the balance for 30 s in `stats.ts`, and slow polling to 10 s in live mode.
+  - **Done.** `vendors.ts` marks the scam `datapu1se` with `demoAttack: true`, and `requirementFor` sets `demoAttack` on any `payto=new` redirect too; the flag travels in the 402 body. `engine.ts` adds a leading `DEMO_ATTACK` **block** whenever `mode === "live"` (passed in by `evaluate`), independent of memory — so these can never pay real USDC, even run first. Sim keeps its existing `LOOKALIKE_PAYEE`/`PAYEE_CHANGED` behaviour (DEMO_ATTACK is live-only). Dashboard disables the two attack scenarios in live until the real vendor's payee is known. Tests: `test/engine.test.ts` (live always-blocks; beats an auto-pay rule; sim unaffected).
+- [x] **A3. Balance polling burns Tatum credits.** `/api/state` calls `getBalance` every 4 s per open tab. **Fix:** cache the balance for 30 s in `stats.ts`, and slow polling to 10 s in live mode.
+  - **Done.** `src/lib/balance-cache.ts` caches the live balance for 30 s (keyed by agent address + coin type); `stats.ts` uses it in live mode only (sim reads fresh), and `guard/index.ts#pay` invalidates it after a payment so the drop shows at once. Dashboard polls `/api/state` every 10 s in live mode, 4 s in sim. Test: `test/balance-cache.test.ts`.
 
 ### P1: correctness and hardening
-- [ ] **A4. Transaction build through Tatum JSON-RPC is untested.** `tx.build({ client })` uses `SuiJsonRpcClient`, which is deprecated in `@mysten/sui` 2.x, for coin selection and gas. Tatum may not expose every method it needs. **Test live first** (§5.3, L3). If it fails, try in order:
+- [x] **A4. Transaction build through Tatum JSON-RPC is untested.** `tx.build({ client })` uses `SuiJsonRpcClient`, which is deprecated in `@mysten/sui` 2.x, for coin selection and gas. Tatum may not expose every method it needs. **Test live first** (§5.3, L3). If it fails, try in order:
   - (a) set an explicit gas budget with `tx.setGasBudget(…)` and `tx.setGasPrice(await rpc.call("suix_getReferenceGasPrice"))`
   - (b) select USDC coins yourself with `suix_getCoins` + `tx.splitCoins`
   - (c) switch the builder to `SuiGrpcClient` (`@mysten/sui/grpc`) on Tatum's gRPC endpoint `https://sui-mainnet-grpc.gateway.tatum.io`
 
   Keep all reads on Tatum, because the hackathon scores "Tatum Sui RPC" usage.
-- [ ] **A5. The `ToAddress` filter in `suix_queryTransactionBlocks`** (payee history) may be unsupported or slow on the gateway. If it errors, fall back to `FromAndToAddress` or treat the payee as new. It's already wrapped in `Promise.allSettled`, but confirm the UI shows a sensible message.
-- [ ] **A6. Vendor verification gaps** in `vendor-server.ts`:
+  - **Superseded by the GraphQL port (2026-11-07), and verified live.** Sui deprecated JSON-RPC, so the whole JSON-RPC ladder is moot. `tatum.ts#preparePayment` now builds with `tx.build({ client })` where `client` is a `SuiGraphQLClient` on Tatum (unified coin/gas resolution over GraphQL), with an explicit gas budget set so `build` skips the gas-estimation dry-run. Dry-run uses `client.simulateTransaction`. **Verified on mainnet:** build + dry-run of a 0.01 USDC transfer succeed. Execute (`client.executeTransaction`, a GraphQL *mutation*) is the one piece still unrun — that's L4.
+- [x] **A5. Payee history over GraphQL.** Tatum's GraphQL indexer exposes no incoming-transfer filter (only sender/function) and `listTransactions` is unreliable on the gateway, so `payeeHistory` now **degrades safely** to `incomingTxCount: 0` (→ "new / little history" → ask, the safe default). Known payees are still recognised from Walrus memory, which is the real signal. The Chainlens vendor's live data uses `listBalances` (works) and best-effort `recentOutgoing` (returns `[]` if the gateway can't list).
+- [x] **A6. Vendor verification gaps** in `vendor-server.ts`:
   - it doesn't check that `payment.payload.payer` equals the transaction sender
   - it doesn't enforce nonce expiry (10 min)
   - it accepts overpayment silently
 
   Add all three, plus tests.
+  - **Done.** `handleVendor` now: rejects a header whose claimed `payer` ≠ the on-chain sender (`v.payer`); expires a 402 offer 10 min after `issuedAt` (drops the nonce, asks for a fresh 402); and enforces the "exact" scheme — overpayment (`v.amount ≠ req.amount`) is refused, not pocketed (underpayment was already caught). Tests: `test/vendor-verify.test.ts` (happy path, wrong payer, overpayment, expired offer).
 - [ ] **A7. Each payment is slow in live mode.** `rememberAndWait` runs for every auto-paid decision. **Fix:** for `by: "allowance"` facts, use `memwal.remember()` (no wait) and fill in the blob id later. Keep `rememberAndWait` for human decisions and rules, since those must be recallable at once.
 - [ ] **A8. Walrus recall relevance.** `recallFor` runs 3 semantic queries with `limit 30`. Check live that rules and payee facts actually come back for unrelated wording. If recall misses facts, the policy is wrong. Consider `sort: "recent"` for the rules query, or a `maxDistance` threshold. Log what was recalled in the decision (already shown in the UI as "Memories it recalled").
 - [ ] **A9. Concurrency.** The JSON file store is single-process and not transaction-safe. That's fine for localhost and the demo. If you deploy, use one instance with a persistent disk (Railway or Fly volume), **not** Vercel serverless.

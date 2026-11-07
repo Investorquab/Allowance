@@ -1,3 +1,4 @@
+import { invalidateBalanceCache } from "../balance-cache";
 import { services } from "../services";
 import { db, newId, save, type ActivityItem } from "../store";
 import type { Decision, PaymentRequest, PaymentRequirement, PreparedPayment, StoredFact } from "../types";
@@ -53,6 +54,7 @@ export async function evaluate(input: { agent: string; task: string; requirement
   const decision = decide({
     request: req,
     policy,
+    mode: config.mode,
     agentAddress,
     expectedNetwork: config.network,
     expectedAsset: config.usdcCoinType,
@@ -109,6 +111,7 @@ export async function pay(requestId: string): Promise<{ digest: string; explorer
     const ours = prepared.dryRun.changes.find((c) => c.coinType === r.asset && c.owner.toLowerCase() === prepared.from.toLowerCase());
     if (!prepared.dryRun.ok || !ours || BigInt(ours.amount) !== -BigInt(r.amount)) throw new Error("dry-run no longer matches the request");
     const digest = await chain.executePayment(prepared);
+    invalidateBalanceCache(); // balance just dropped; don't serve a stale cached value
     act.final = "paid";
     act.digest = digest;
     d.payments.push({ requestId, digest, amount: r.amount, to: r.payTo, at: new Date().toISOString(), explorerUrl: chain.explorerTxUrl(digest) });

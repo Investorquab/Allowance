@@ -10,7 +10,7 @@ export async function GET() {
   const out: Record<string, unknown> = { mode: c.mode };
   try {
     const { chain, memory } = services();
-    if (chain instanceof TatumSuiChain) out.tatum = await chain.rpc.call("suix_getReferenceGasPrice", []);
+    if (chain instanceof TatumSuiChain) out.tatum = await chain.referenceGasPrice();
     if (memory instanceof WalrusMemory) out.walrus = await memory.health();
     out.agent = chain.agentAddress();
     out.ok = true;

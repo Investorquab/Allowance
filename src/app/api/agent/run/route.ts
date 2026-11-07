@@ -1,7 +1,10 @@
 import { runTask } from "@/lib/agent";
+import { requireAuth } from "@/lib/auth";
 
 /** Run one agent task: { task: "why", path: "/api/vendors/<vendor>/<endpoint>?..." } */
 export async function POST(request: Request) {
+  const denied = requireAuth(request);
+  if (denied) return denied;
   const body = (await request.json().catch(() => null)) as { task?: string; path?: string } | null;
   if (!body?.path?.startsWith("/api/vendors/") && !body?.path?.startsWith("https://"))
     return Response.json({ error: "path must be a vendor path or an https URL" }, { status: 400 });

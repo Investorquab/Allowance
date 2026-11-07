@@ -1,8 +1,11 @@
+import { requireAuth } from "@/lib/auth";
 import { parseRules } from "@/lib/guard/learn";
 import { services } from "@/lib/services";
 
 /** Tell Allowance a rule in plain words: { text: "never pay datapu1se", vendor?: "datapu1se" } */
 export async function POST(request: Request) {
+  const denied = requireAuth(request);
+  if (denied) return denied;
   const { text, vendor } = (await request.json().catch(() => ({}))) as { text?: string; vendor?: string };
   if (!text?.trim()) return Response.json({ error: "text required" }, { status: 400 });
   const { memory } = services();

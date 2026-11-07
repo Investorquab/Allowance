@@ -13,6 +13,8 @@ export interface VendorDef {
   name: string;
   payTo: () => string;
   endpoints: Record<string, { usd: number; description: string }>;
+  /** A deliberate demo attack vendor (look-alike address). Never paid with real money (A2). */
+  demoAttack?: boolean;
 }
 
 /** Same first 6 + last 4 hex chars as `addr`, different middle — what a poisoner generates. */
@@ -53,6 +55,7 @@ export const VENDORS: Record<string, VendorDef> = {
     name: "DataPulse",
     payTo: () => lookalikeOf(datapulseAddr()),
     endpoints: { "market-brief": { usd: 0.02, description: "Short market brief for a token" } },
+    demoAttack: true,
   },
 };
 
@@ -64,6 +67,8 @@ export function requirementFor(url: URL, vendorId: string, endpoint: string, non
   const surge = Number(url.searchParams.get("surge") ?? "1"); // demo: vendor quietly raises prices
   const payToOverride = url.searchParams.get("payto") === "new" ? simAddress(`redirect:${vendorId}`) : null; // demo: invoice redirect
   const c = cfg();
+  // A look-alike vendor, or an invoice redirected to an address nobody controls, is a demo attack.
+  const demoAttack = Boolean(v.demoAttack) || Boolean(payToOverride);
   return {
     scheme: "exact",
     network: c.network,
@@ -77,5 +82,6 @@ export function requirementFor(url: URL, vendorId: string, endpoint: string, non
     endpoint,
     nonce,
     expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+    ...(demoAttack ? { demoAttack: true } : {}),
   };
 }

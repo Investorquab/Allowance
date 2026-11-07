@@ -13,12 +13,15 @@ const env = (k: string, d?: string) => process.env[k] ?? d;
 const DEFAULT_USDC = "0xdba34672e30cb065b1f93e3ab55318768fd6fef66c15942c9f7cb846e2f900e7::usdc::USDC";
 
 export function getConfig() {
-  const mode = (env("ALLOWANCE_MODE", "sim") as Mode) === "live" ? "live" : "sim";
+  const mode: Mode = (env("ALLOWANCE_MODE", "sim") as Mode) === "live" ? "live" : "sim";
   return {
     mode,
     network: mode === "live" ? "sui:mainnet" : "sui:sim",
     dataDir: env("ALLOWANCE_DATA_DIR", path.join(process.cwd(), ".data"))!,
     baseUrl: env("ALLOWANCE_BASE_URL", "http://localhost:3000")!,
+
+    // Admin auth: required on every POST route except the public vendor APIs (A1).
+    adminToken: env("ALLOWANCE_ADMIN_TOKEN", "")!,
 
     // Tatum
     tatumApiKey: env("TATUM_API_KEY", "")!,
@@ -27,6 +30,7 @@ export function getConfig() {
     // Money
     usdcCoinType: env("USDC_COIN_TYPE", DEFAULT_USDC)!,
     usdcDecimals: Number(env("USDC_DECIMALS", "6")),
+    gasBudgetMist: env("SUI_GAS_BUDGET_MIST", "20000000")!, // 0.02 SUI; used for explicit-gas build (A4)
     agentPrivateKey: env("AGENT_SUI_PRIVATE_KEY", "")!, // suiprivkey1… — NEVER commit or paste anywhere
     vendorAddress: env("VENDOR_SUI_ADDRESS", "")!,
 

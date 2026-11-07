@@ -15,6 +15,8 @@ export interface PaymentRequirement {
   endpoint: string; // e.g. "wallet-report"
   nonce: string;
   expiresAt: string; // ISO
+  /** Built-in demo "attack" (look-alike vendor or redirected invoice). Always blocked in live mode (A2). */
+  demoAttack?: boolean;
 }
 
 /** What the agent hands Allowance before paying. */

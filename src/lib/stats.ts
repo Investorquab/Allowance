@@ -1,3 +1,4 @@
+import { getCachedBalance, setCachedBalance } from "./balance-cache";
 import { fmtUsd } from "./config";
 import { dayKey, spentToday } from "./guard";
 import { services } from "./services";
@@ -9,8 +10,16 @@ export async function dashboardState() {
   const d = db();
   let balance: string | null = null;
   let balanceError: string | null = null;
+  const balKey = `${chain.agentAddress()}|${config.usdcCoinType}`;
   try {
-    balance = await chain.getBalance(chain.agentAddress(), config.usdcCoinType);
+    // Live balance reads are metered (Tatum); cache for 30s (A3). Sim is free, so read fresh.
+    const cached = config.mode === "live" ? getCachedBalance(balKey) : null;
+    if (cached !== null) {
+      balance = cached;
+    } else {
+      balance = await chain.getBalance(chain.agentAddress(), config.usdcCoinType);
+      if (config.mode === "live") setCachedBalance(balKey, balance);
+    }
   } catch (e) {
     balanceError = e instanceof Error ? e.message : String(e);
   }
@@ -66,7 +75,7 @@ export async function dashboardState() {
       verified: d.payments.find((p) => p.requestId === a.requestId)?.verifiedByVendor ?? false,
     })),
     facts: [...facts].reverse(),
-    tatumCalls: (chain as any).rpc?.calls?.length ?? null,
+    tatumCalls: (chain as any).calls?.length ?? null,
   };
 }
 

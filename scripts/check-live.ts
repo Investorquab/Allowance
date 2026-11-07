@@ -15,7 +15,7 @@ async function main() {
   if (!c.tatumApiKey) bad("TATUM_API_KEY missing");
   else {
     const chain = new TatumSuiChain({ url: c.suiRpcUrl, apiKey: c.tatumApiKey, agentPrivateKey: c.agentPrivateKey || undefined });
-    try { ok(`reference gas price: ${await chain.rpc.call("suix_getReferenceGasPrice", [])}`); } catch (e) { bad(String(e)); }
+    try { ok(`reference gas price: ${await chain.referenceGasPrice()}`); } catch (e) { bad(String(e)); }
     if (!c.agentPrivateKey) bad("AGENT_SUI_PRIVATE_KEY missing");
     else {
       const a = chain.agentAddress();

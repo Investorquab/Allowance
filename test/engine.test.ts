@@ -111,4 +111,27 @@ describe("decide()", () => {
     const never = sf({ kind: "rule", rule: { type: "never_pay", vendor: "chainlens" }, source: "never pay them", at: "2026-11-05T00:00:00Z" });
     expect(decide(input({ facts: [never] })).action).toBe("block");
   });
+
+  it("live mode: a demo-attack request is always blocked, even with no memory (A2)", () => {
+    const i = input({ mode: "live" });
+    i.request.requirement.demoAttack = true;
+    const d = decide(i);
+    expect(d.action).toBe("block");
+    expect(d.checks.map((c) => c.code)).toContain("DEMO_ATTACK");
+    expect(d.summary).toMatch(/^Blocked/);
+  });
+
+  it("live mode: a demo-attack is blocked even when a rule would otherwise auto-pay it (A2)", () => {
+    const rule = sf({ kind: "rule", rule: { type: "auto_ok_under", amount: "50000", vendor: "chainlens" }, source: "ok under 5 cents", at: "2026-11-05T00:00:00Z" });
+    const payee = sf({ kind: "payee", vendor: "chainlens", payTo: VENDOR, label: "Chainlens", at: "2026-11-05T00:00:00Z" });
+    const i = input({ mode: "live", facts: [rule, payee] });
+    i.request.requirement.demoAttack = true;
+    expect(decide(i).action).toBe("block");
+  });
+
+  it("sim mode: the demo-attack flag does NOT trigger DEMO_ATTACK (look-alike/payee checks still run)", () => {
+    const i = input(); // mode undefined → not live
+    i.request.requirement.demoAttack = true;
+    expect(decide(i).checks.map((c) => c.code)).not.toContain("DEMO_ATTACK");
+  });
 });

@@ -17,7 +17,7 @@ export function services() {
   let memory: MemoryStore;
   if (c.mode === "live") {
     assertLive(c);
-    chain = new TatumSuiChain({ url: c.suiRpcUrl, apiKey: c.tatumApiKey!, agentPrivateKey: c.agentPrivateKey });
+    chain = new TatumSuiChain({ url: c.suiRpcUrl, apiKey: c.tatumApiKey!, agentPrivateKey: c.agentPrivateKey, gasBudgetMist: c.gasBudgetMist });
     memory = new WalrusMemory({ key: c.memwalKey!, accountId: c.memwalAccountId!, serverUrl: c.memwalServerUrl, namespace: c.memwalNamespace! });
   } else {
     const sim = new SimChain(simAddress("agent"));

@@ -12,6 +12,23 @@ const usd = (units: string | number | undefined) => {
 };
 const short = (a?: string) => (a && a.length > 14 ? `${a.slice(0, 8)}…${a.slice(-4)}` : a ?? "");
 
+// Admin token (A1). Kept only in the browser; sent as a Bearer header on POST actions.
+const TOKEN_KEY = "allowance_admin_token";
+const getToken = () => {
+  try { return localStorage.getItem(TOKEN_KEY) ?? ""; } catch { return ""; }
+};
+const setToken = (t: string) => {
+  try { if (t) localStorage.setItem(TOKEN_KEY, t); else localStorage.removeItem(TOKEN_KEY); } catch { /* ignore */ }
+};
+const postWithAuth = (url: string, body?: unknown) => {
+  const token = getToken();
+  return fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify(body ?? {}),
+  });
+};
+
 const TABS = ["Overview", "Inbox", "Activity", "Memory", "Try it"] as const;
 type Tab = (typeof TABS)[number];
 
@@ -45,19 +62,28 @@ export default function Dashboard() {
     }
   }, []);
 
+  // Poll slower in live mode (A3): balance reads cost Tatum credits.
+  const pollMs = s?.mode === "live" ? 10000 : 4000;
   useEffect(() => {
     const first = setTimeout(load, 0);
-    const t = setInterval(load, 4000);
+    const t = setInterval(load, pollMs);
     return () => {
       clearTimeout(first);
       clearInterval(t);
     };
-  }, [load]);
+  }, [load, pollMs]);
 
   const act = async (label: string, url: string, body?: unknown) => {
     setBusy(label);
     try {
-      const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body ?? {}) });
+      let r = await postWithAuth(url, body);
+      if (r.status === 401) {
+        const t = window.prompt("Admin token (ALLOWANCE_ADMIN_TOKEN) is required for this action:", getToken());
+        if (t) {
+          setToken(t.trim());
+          r = await postWithAuth(url, body);
+        }
+      }
       const j = await r.json().catch(() => ({}));
       if (!r.ok && j.error) setErr(j.error);
     } finally {
@@ -354,12 +380,12 @@ function Memory({ s, busy, act }: { s: State; busy: string | null; act: any }) {
   );
 }
 
-const SCENARIOS = [
+const SCENARIOS: { label: string; task: string; path: () => string; attack?: string }[] = [
   { label: "Routine: Chainlens wallet report", task: "Routine wallet check", path: () => `/api/vendors/chainlens/wallet-report?address=0x${rnd()}` },
   { label: "Routine: DataPulse market brief", task: "Daily market brief", path: () => `/api/vendors/datapulse/market-brief?token=SUI&n=${rnd().slice(0, 6)}` },
   { label: "Price spike (DataPulse ×6)", task: "Market brief (vendor raised prices)", path: () => `/api/vendors/datapulse/market-brief?token=SUI&surge=6&n=${rnd().slice(0, 6)}` },
-  { label: "Scam: look-alike “DataPulse”", task: "Market brief from a forum link", path: () => `/api/vendors/datapu1se/market-brief?token=SUI&n=${rnd().slice(0, 6)}` },
-  { label: "Redirected invoice (Chainlens)", task: "Portfolio check — vendor sent new pay address", path: () => `/api/vendors/chainlens/portfolio?address=0x${rnd()}&payto=new` },
+  { label: "Scam: look-alike “DataPulse”", task: "Market brief from a forum link", path: () => `/api/vendors/datapu1se/market-brief?token=SUI&n=${rnd().slice(0, 6)}`, attack: "datapulse" },
+  { label: "Redirected invoice (Chainlens)", task: "Portfolio check — vendor sent new pay address", path: () => `/api/vendors/chainlens/portfolio?address=0x${rnd()}&payto=new`, attack: "chainlens" },
   { label: "Expensive: DataPulse deep-dive", task: "Long research report", path: () => `/api/vendors/datapulse/deep-dive?token=DEEP&n=${rnd().slice(0, 6)}` },
 ];
 function rnd() {
@@ -369,6 +395,9 @@ function rnd() {
 function TryIt({ s, busy, act }: { s: State; busy: string | null; act: any }) {
   const [last, setLast] = useState<string | null>(null);
   const [addr, setAddr] = useState("");
+  // In live mode, don't let an attack scenario run until its real vendor is known (A2):
+  // before that it would surface as a new payee and risk sending real USDC on approval.
+  const knownVendors = new Set<string>((s.facts ?? []).filter((f: any) => f.fact?.kind === "payee").map((f: any) => f.fact.vendor));
   return (
     <div className="flex flex-col gap-3">
       <Panel>
@@ -377,7 +406,8 @@ function TryIt({ s, busy, act }: { s: State; busy: string | null; act: any }) {
         <div className="grid sm:grid-cols-2 gap-2">
           {SCENARIOS.map((x) => {
             const path = x.path();
-            return <Btn key={x.label} disabled={!!busy} onClick={async () => { setLast(x.label); await act(x.label, "/api/agent/run", { task: x.task, path }); }}>{busy === x.label ? "Working…" : x.label}</Btn>;
+            const locked = s.mode === "live" && x.attack && !knownVendors.has(x.attack);
+            return <Btn key={x.label} disabled={!!busy || !!locked} onClick={async () => { setLast(x.label); await act(x.label, "/api/agent/run", { task: x.task, path }); }}>{busy === x.label ? "Working…" : locked ? `${x.label} (pay the real ${x.attack} first)` : x.label}</Btn>;
           })}
         </div>
         {last && <p className="text-xs text-muted mt-3">Sent: {last}. Check Activity or Inbox.</p>}
