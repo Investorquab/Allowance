@@ -8,6 +8,8 @@ and settles real USDC on Sui via Tatum**. Record at 1440×900, dark room, cursor
 - Sim: `ALLOWANCE_MODE=sim npm run dev` → http://localhost:3000 → click **Reset sim data**.
 - Have a Suiscan tab open to a real tx (e.g. `9yeQWKKRtu6pGkrDwKpK6F1uR6GzZppm1fJY5nQQPuTW`).
 - Put a small on-screen caption **"Sim mode · same guard logic"** on every sim beat, so the cut to live is unambiguous.
+- **Pre-seed PriceWire trust** so the 1:12 beat auto-pays (otherwise its first run *asks* — no rule learned yet): before recording, either approve a PriceWire `spot` call **twice**, or add a rule **"auto-approve under 5 cents from PriceWire"** in the Memory tab.
+- **Rehearse the portability close off camera.** It only auto-pays if a matching rule was saved in **live** mode (sim rules may not be visible to the live session) — so run a live Chainlens approval with a rule first. **Back up `.data/allowance-live.json`** before you delete it, and confirm the server's startup logs print **no keys** (that terminal is on screen when you restart).
 
 **🔒 Recording safety:** before you hit record in live mode, close `.env.local`, hide wallet/Tatum keys,
 and clear terminal scrollback. If a key ever appears in a take, stop, rotate it, and re-record. Never
@@ -39,10 +41,10 @@ Suiscan tx for ~1s** so "real money" is planted early — you'll pay it off at t
 > "Same vendor, same shape — now it just pays, and cites the rule it remembered."
 
 ### 1:12 — It guards a *real* external API (14s)
-- **Try it → Real API: SUI spot price (PriceWire)** → it **auto-pays** → expand the row to show the
-  live result (`source: CoinGecko API (live…)`).
-> "This isn't a toy vendor — PriceWire fronts a real third-party API. A cent in USDC on Sui unlocks
-> live market data. Allowance is the paywall in front of any real API your agent uses."
+- **Try it → Real API: SUI spot price (PriceWire)** → it **auto-pays** (pre-approved in setup) → expand
+  the row to show the live result (`source: CoinGecko API (live…)`).
+> "PriceWire fronts a real API — which I'd already cleared. A cent in USDC unlocks live market data.
+> Allowance is the paywall in front of any API your agent uses." *(~25 words — leaves room for clicks)*
 
 ### 1:26 — It blocks the sketchy (20s)
 - **Try it → Scam: look-alike DataPulse** → **blocked**. **Try it → Redirected invoice** → **blocked**.
@@ -60,15 +62,14 @@ Suiscan tx for ~1s** so "real money" is planted early — you'll pay it off at t
   vendor, **"✓ verified by vendor"**.
 > "This is mainnet. 12 mainnet payments in testing, all verified on-chain through Tatum."
 
-### 2:22 — Portability close, on camera (8s)
-- In the terminal: delete `.data/allowance-live.json`, restart the server, run the same vendor → it
-  **still auto-pays**. (Jump-cut; keep it tight.)
-> "I deleted the whole local database — and it still auto-paid, because the rule lives on Walrus, not
-> on disk. Portable agent judgment. That's Allowance."
+### 2:22 — Portability close, on camera (~10s)
+- In the terminal: **back up then delete** `.data/allowance-live.json`, restart the server, run the same
+  vendor → it **still auto-pays**. (Let the voiceover run over the jump cuts.)
+> "I deleted the local database. It still auto-paid, because the rule lives on Walrus. That's Allowance."
 
 ### End card
 Repo + "Built with Tatum + Walrus · Total Recall".
 
 ---
 
-_Total: ~2:30. Beats: 12 + 23 + 23 + 14 + 14 + 20 + 16 + 20 + 8 = 150s._
+_Total: ~2:32. Beats: 12 + 23 + 23 + 14 + 14 + 20 + 16 + 20 + 10 = 152s._
