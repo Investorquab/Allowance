@@ -48,3 +48,7 @@ next-env.d.ts
 # video production (local only — not for the public repo / judges)
 video.md
 video/
+
+# submission drafts (local only — not for the public repo)
+BLOG.md
+X-POST.md

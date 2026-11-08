@@ -4,6 +4,8 @@
 
 > **▶ Live on Sui mainnet:** https://allowance.185-7-81-139.sslip.io
 > A deployed, public agent-payment service — its `/api/vendors/*` endpoints answer real HTTP `402 Payment Required` and settle USDC on Sui.
+>
+> **▶ Demo video:** https://youtu.be/iOcweVCAcb8
 
 Built for **Total Recall (Tatum × Walrus)**, Track 02 *Smart Agents for Real Life* — also entered for *Best Walrus Memory* and *Best Use of Agent Payments*. Requirements tracked in [CHECKLIST.md](./CHECKLIST.md); mainnet latency/cost numbers in [FIELD-TEST.md](./FIELD-TEST.md).
 

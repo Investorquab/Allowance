@@ -16,12 +16,12 @@ Source: the event page's "What to deliver" checklist and FAQ.
 - [x] **At least 10 memories stored on Mainnet**: **11 memories on Walrus mainnet** (namespace `allowance`), confirmed in the dashboard Memory tab
 - [x] **Tatum RPC used for onchain data**: balance, coin selection, dry-run (simulate), execute, verify and gas price all go through `sui-mainnet.gateway.tatum.io/graphql` (payee-history degrades gracefully — the gateway has no incoming-tx filter)
 - [ ] **Published blog post** covering: what it does, how it uses Tatum and Walrus, **how it learned over time** (use the "asks per day" chart)
-- [ ] **Working demo** (video, 2–3 min)
+- [x] **Working demo** (video) — https://youtu.be/iOcweVCAcb8
 - [x] **Public repo** with a clear README — https://github.com/Investorquab/Allowance (README covers problem, how-it-works, checks, setup)
 - [x] Submission form fields ready (IDs kept privately, out of this public repo):
   - Tatum dashboard **account ID** — ✅ have it
   - `MEMWAL_AGENT_ID` (the **delegate public key**, derived from `MEMWAL_PRIVATE_KEY`; distinct from `MEMWAL_ACCOUNT_ID`) — ✅ have it
-  - Repo URL — https://github.com/Investorquab/Allowance · [ ] demo URL or video · [ ] blog URL
+  - Repo URL — https://github.com/Investorquab/Allowance · [x] demo video — https://youtu.be/iOcweVCAcb8 · [ ] blog URL
 - [ ] Submitted before **10 Nov 17:00 UTC**
 
 ## B. Prizes we're targeting
