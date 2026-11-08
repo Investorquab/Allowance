@@ -3,6 +3,30 @@ import type { Fact, PaymentRequest } from "../types";
 
 type Rule = Extract<Fact, { kind: "rule" }>["rule"];
 
+const NUM_WORDS: Record<string, string> = {
+  zero: "0", one: "1", two: "2", three: "3", four: "4", five: "5", six: "6",
+  seven: "7", eight: "8", nine: "9", ten: "10", fifteen: "15", twenty: "20",
+  thirty: "30", fifty: "50", hundred: "100",
+};
+
+/**
+ * Light offline normalization of a free-text note so the deterministic `parseRules` can catch
+ * amounts phrased in words ("two bucks a day") or loosely ("half a dollar"). This is the local
+ * stand-in for Walrus `analyze()`; in live mode we ALSO send the raw note to `analyze()`, which
+ * extracts cleaner fact statements server-side — but we run this first so rules work even offline.
+ */
+export function normalizeNoteText(text: string): string {
+  let t = text.toLowerCase();
+  t = t.replace(/\bhalf a (dollar|buck)\b/g, "$0.50");
+  t = t.replace(/\bhalf a (cent)\b/g, "0.5 cents");
+  t = t.replace(/\b(zero|one|two|three|four|five|six|seven|eight|nine|ten|fifteen|twenty|thirty|fifty|hundred)\b/g, (w) => NUM_WORDS[w] ?? w);
+  // "2 dollars" / "2 bucks" / "2 usd" → "$2"
+  t = t.replace(/\b(\d+(?:\.\d+)?)\s*(?:bucks?|dollars?|usd)\b/g, "$$$1");
+  // "a buck" / "a dollar" → "$1"
+  t = t.replace(/\ba (?:buck|dollar)\b/g, "$1");
+  return t;
+}
+
 /**
  * Turns a short human note into explicit rules. Deliberately simple and predictable —
  * the note is ALSO stored verbatim, so nothing the user said is lost.

@@ -1,12 +1,19 @@
 import { MemWal } from "@mysten-incubation/memwal";
 import { db, newId, save } from "../store";
 import type { Fact, StoredFact } from "../types";
+import { normalizeNoteText } from "../guard/learn";
 import { decodeFact, describe, encodeFact } from "./facts";
 
 export interface MemoryStore {
   readonly name: string;
   remember(fact: Fact): Promise<StoredFact>;
   recall(query: string, limit?: number): Promise<StoredFact[]>;
+  /**
+   * Turn a free-text note into candidate statements that `parseRules` can read. Live mode sends the
+   * note to Walrus `analyze()` (server-side fact extraction, stored on Walrus in the background);
+   * sim mode normalizes it offline. Always includes a normalized copy so rules work either way.
+   */
+  analyze(note: string): Promise<string[]>;
   /** Local mirror of everything written (fast UI listing). */
   all(): StoredFact[];
   /** Repopulate the local mirror from the source of truth; returns the authoritative count. */
@@ -34,6 +41,13 @@ export class LocalMemory implements MemoryStore {
       .sort((a, b) => b.score - a.score)
       .slice(0, limit)
       .map((x) => x.f);
+  }
+  async analyze(note: string) {
+    // Offline: split into clauses and normalize each, so word-amounts across a sentence are caught.
+    const clauses = note.split(/[;.]|,?\s+(?:but|and|also|however)\s+/i).map((s) => s.trim()).filter(Boolean);
+    const out = new Set<string>([normalizeNoteText(note)]);
+    for (const c of clauses) out.add(normalizeNoteText(c));
+    return [...out];
   }
   all() {
     return db().facts;
@@ -102,6 +116,24 @@ export class WalrusMemory implements MemoryStore {
   async remember(fact: Fact) {
     const r = await this.mw.rememberAndWait(encodeFact(fact));
     return mirror(fact, r.blob_id);
+  }
+
+  /**
+   * Send the raw note to Walrus `analyze()`: the relayer extracts clean fact statements, embeds and
+   * stores them on Walrus in the background (so the note itself becomes owned memory), and returns
+   * their text. We parse rules from those AND from a locally-normalized copy, so rules are reliable
+   * even if the extractor phrases things our regex doesn't recognise. Degrades to the offline path.
+   */
+  async analyze(note: string) {
+    const texts = new Set<string>([normalizeNoteText(note)]);
+    try {
+      const r = await this.mw.analyze(note, { namespace: this.namespace });
+      for (const f of r.facts) if (f.text) texts.add(f.text);
+      this.lastError = undefined;
+    } catch (e) {
+      this.lastError = e instanceof Error ? e.message : String(e);
+    }
+    return [...texts];
   }
 
   async recall(query: string, limit = 20) {

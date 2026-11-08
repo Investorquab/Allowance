@@ -10,11 +10,19 @@ export async function POST(request: Request) {
   if (!text?.trim()) return Response.json({ error: "text required" }, { status: 400 });
   const { memory } = services();
   const at = new Date().toISOString();
-  const rules = parseRules(text, vendor || "");
+  // Parse the raw words, then widen with analyze() (Walrus extractor live / normalizer in sim) so
+  // loosely-phrased rules ("no more than two bucks a day") are still caught. Dedupe by rule shape.
+  const candidates = [text, ...(await memory.analyze(text).catch(() => []))];
+  const seen = new Set<string>();
   const written = [];
-  for (const rule of rules) {
-    if (rule.type === "never_pay" && !rule.vendor) continue;
-    written.push(await memory.remember({ kind: "rule", rule, source: text, at }));
+  for (const t of candidates) {
+    for (const rule of parseRules(t, vendor || "")) {
+      if (rule.type === "never_pay" && !rule.vendor) continue;
+      const k = JSON.stringify(rule);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      written.push(await memory.remember({ kind: "rule", rule, source: text, at }));
+    }
   }
   if (!written.length) written.push(await memory.remember({ kind: "note", text, at }));
   return Response.json({ written });

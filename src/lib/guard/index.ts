@@ -1,9 +1,9 @@
 import { invalidateBalanceCache } from "../balance-cache";
 import { services } from "../services";
 import { db, newId, save, type ActivityItem } from "../store";
-import type { Decision, PaymentRequest, PaymentRequirement, PreparedPayment, StoredFact } from "../types";
+import type { Decision, Fact, PaymentRequest, PaymentRequirement, PreparedPayment, StoredFact } from "../types";
 import { decide } from "./engine";
-import { factsFromHumanDecision } from "./learn";
+import { factsFromHumanDecision, parseRules } from "./learn";
 import { derivePolicy } from "./policy";
 
 export const dayKey = (d = db()) => (d.demoDay > 0 ? `day-${d.demoDay}` : new Date().toISOString().slice(0, 10));
@@ -186,6 +186,35 @@ export async function recordAutoPaid(req: PaymentRequest, decision: Decision) {
   await rememberAllowanceOutcome(req, "auto-paid", decision);
 }
 
+/**
+ * Rules the deterministic `parseRules` missed in the raw note, recovered via memory `analyze()`
+ * (Walrus extractor live; offline normalizer in sim). Returns only rule facts not already captured,
+ * so the human's exact words are still stored verbatim by `factsFromHumanDecision`.
+ */
+async function extraRulesFromAnalyze(note: string, vendor: string, already: Fact[]): Promise<Fact[]> {
+  const { memory } = services();
+  const have = new Set(
+    already.flatMap((f) => (f.kind === "rule" ? [JSON.stringify(f.rule)] : [])),
+  );
+  const at = new Date().toISOString();
+  const out: Fact[] = [];
+  let texts: string[] = [];
+  try {
+    texts = await memory.analyze(note);
+  } catch {
+    return out; // analyze is best-effort; the deterministic rules already stand
+  }
+  for (const t of texts) {
+    for (const rule of parseRules(t, vendor)) {
+      const k = JSON.stringify(rule);
+      if (have.has(k)) continue;
+      have.add(k);
+      out.push({ kind: "rule", rule, source: note, at });
+    }
+  }
+  return out;
+}
+
 /** Human answers an ask → learn (write memories) → pay if approved. */
 export async function resolve(requestId: string, outcome: "approved" | "denied", note?: string) {
   const { memory } = services();
@@ -196,6 +225,7 @@ export async function resolve(requestId: string, outcome: "approved" | "denied",
   p.resolved = { outcome, note, at: new Date().toISOString() };
   const known = memory.all().some((f) => f.fact.kind === "payee" && f.fact.vendor === req.requirement.vendor && f.fact.payTo === req.requirement.payTo);
   const facts = factsFromHumanDecision(req, outcome, note, known);
+  if (note) facts.push(...(await extraRulesFromAnalyze(note, req.requirement.vendor, facts)));
   const written: StoredFact[] = [];
   for (const f of facts) written.push(await memory.remember(f));
   const act = d.activity.find((a) => a.requestId === requestId)!;
