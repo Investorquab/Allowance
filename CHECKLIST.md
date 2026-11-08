@@ -19,8 +19,8 @@ Source: the event page's "What to deliver" checklist and FAQ.
 - [ ] **Working demo** (video, 2–3 min)
 - [x] **Public repo** with a clear README — https://github.com/Investorquab/Allowance (README covers problem, how-it-works, checks, setup)
 - [ ] Submission form fields ready:
-  - [ ] Tatum dashboard **account ID** (get from dashboard.tatum.io)
-  - [ ] `MEMWAL_AGENT_ID`: the public key under *Delegate keys* in the Memory dashboard
+  - [x] Tatum dashboard **account ID**: `6aee59260b2c2aba7e28bd34`
+  - [ ] `MEMWAL_AGENT_ID` (the **delegate public key** under *Delegate keys*) — ⚠️ user supplied `MEMWAL_ACCOUNT_ID=0xb98dbb88c1ad4e8cf205fc9dc2c0be83a9cc5b4a39997a6d40b8db035f9d78ba` (the account object id), which is NOT the same field. Confirm the delegate public key from the Memory dashboard before submitting.
   - [x] Repo URL — https://github.com/Investorquab/Allowance · [ ] demo URL or video · [ ] blog URL
 - [ ] Submitted before **10 Nov 17:00 UTC**
 

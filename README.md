@@ -1,19 +1,32 @@
 # Allowance
 
-**▶ Live on Sui mainnet: https://allowance.185-7-81-139.sslip.io** — a deployed agent-payment service; its `/api/vendors/*` endpoints answer real HTTP 402 and settle USDC on Sui.
+**A spending guard for autonomous AI agents.** Allowance sits between your agent and the paid APIs it calls. It **pays for routine things itself, asks you about anything new or unusual, and blocks what looks wrong** — and it **learns your rules from every approve or deny**. Payments settle in **USDC on Sui mainnet**, every transaction is checked and verified through **Tatum's Sui RPC**, and what it learns is stored in **Walrus Memory** so your rules follow you to any agent or machine.
 
-**Your AI agent's spending allowance.** It pays for routine things by itself, asks you about anything new or unusual, and **learns your rules from every approve or deny**. Each payment settles in **USDC on Sui mainnet** and is checked through **Tatum's Sui RPC**. What it learns is stored in **Walrus Memory**, so your rules follow you to any agent.
+> **▶ Live on Sui mainnet:** https://allowance.185-7-81-139.sslip.io
+> A deployed, public agent-payment service — its `/api/vendors/*` endpoints answer real HTTP `402 Payment Required` and settle USDC on Sui.
 
-Built for **Total Recall (Tatum × Walrus)**, Track 02 *Smart Agents for Real Life*. Also entered for *Best Walrus Memory* and *Best Use of Agent Payments*. The requirements are tracked in [CHECKLIST.md](./CHECKLIST.md).
+Built for **Total Recall (Tatum × Walrus)**, Track 02 *Smart Agents for Real Life* — also entered for *Best Walrus Memory* and *Best Use of Agent Payments*. Requirements tracked in [CHECKLIST.md](./CHECKLIST.md); mainnet latency/cost numbers in [FIELD-TEST.md](./FIELD-TEST.md).
 
-## The problem
+---
 
-Agents can now pay for APIs per request (x402, MPP). That leaves you two bad options:
+## Why it exists
 
-- **Hard caps only.** One bad prompt or caching miss and you get a surprise bill ([a $38k Bedrock bill](https://news.ycombinator.com/item?id=47933355) from a single cache miss).
-- **Approve everything.** The agent asks about every 1-cent call, so you stop reading and click yes.
+Agents can now pay for things per request — an API call, a dataset, a compute job — over HTTP 402 and schemes like x402. That's powerful, and it leaves you two bad options:
 
-Allowance sits in between. Its rules come from *your own decisions*, and it treats every payment the way security teams treat multisig signing: **decode and dry-run before signing**.
+- **Hard caps only.** One bad prompt or a caching miss and you get a surprise bill ([a $38k Bedrock bill](https://news.ycombinator.com/item?id=47933355) from a single cache miss).
+- **Approve everything.** The agent pings you about every one-cent call until you stop reading and just tap *yes* — which is the same as approving everything.
+
+Neither is how you'd hand money to a person you trust. You give them an **allowance**: pay for the routine yourself, check with me on anything unusual, and we both learn the rules as we go. That's Allowance — and it treats every payment the way a security team treats a multisig signature: **decode it, dry-run it, and refuse anything that isn't exactly right, before a single coin moves.**
+
+## What it does
+
+- **Decides every payment** — `PAY` · `ASK YOU` · `BLOCK` — as a pure function with a clear, auditable reason trail.
+- **Learns from your words.** Approve with a note like *"keep it under two bucks a day"* and Walrus `analyze()` turns it into an enforceable rule; next time, it just knows.
+- **Remembers on Walrus, not on disk.** Rules, payees and past decisions live on Walrus mainnet — delete the local database and it *still* makes the right call, because memory is the source of truth.
+- **Settles real USDC on Sui, verified via Tatum.** The agent pays; the vendor independently verifies the on-chain transfer through Tatum before serving data.
+- **Guards real third-party APIs** — not just demo vendors (see *PriceWire*, which fronts live CoinGecko / Frankfurter data behind the Sui-settled 402).
+- **Approvals from your phone** via a Telegram bot (`npm run telegram`): Approve/Deny buttons, `/status`, `/rules`, and a daily brief.
+- **Shows its work.** Every decision lists the checks it ran and the exact memories it recalled. A "Memory switch" view decides the same payment *with* and *without* memory, side by side.
 
 ## How it works
 
@@ -27,53 +40,95 @@ agent ──"may I pay?"──▶ ALLOWANCE
         ASK ─▶ inbox ─▶ you approve/deny (+ optional rule in plain words) ─▶ new memories ─▶ next time it knows
 ```
 
-### Checks (in `src/lib/guard/engine.ts`)
+The decision is a **pure function** (`src/lib/guard/engine.ts#decide`). Order: **hard caps** (which memory can never raise) → **your rules** → **transaction checks** → **payee checks** → learned trust. Any one block means block; otherwise any ask means ask; otherwise pay.
+
+### The checks — multisig security, applied to agent spending
 
 | Check | Result | Why |
 |---|---|---|
-| Hard per-payment and daily caps | block | Set by you in env. Memory can never raise them |
+| Hard per-payment & daily caps | block | Set by you in env. **Memory can never raise them** |
 | `never pay X` rule | block | You said so |
-| **Dry-run mismatch** | block | The simulated transaction must move *exactly* the asked amount from you to the vendor, and nothing else |
-| **Look-alike pay-to address** | block | Same first and last characters as a known payee but a different address (address poisoning) |
+| **Dry-run mismatch** | block | The simulated transaction must move *exactly* the asked amount from you to the vendor — nothing else |
+| **Look-alike pay-to address** | block | Same first/last characters as a known payee but a different address (address poisoning) |
 | **Payee changed** | block | A known vendor suddenly wants paying at a new address (invoice redirect) |
+| **Demo-attack guard (live)** | block | Built-in "attack" scenarios can *never* send real USDC to an unowned address, even if run first |
 | Duplicate purchase | block | The agent already bought this exact thing within the hour |
-| New payee with no onchain history | ask | First contact |
+| New payee, no on-chain history | ask | First contact |
 | Price spike vs remembered norm | ask | More than 2× what you usually pay |
-| Over your budget or "ask above" rule | ask | Your words |
-| **Learned trust** | pay | You approved this vendor and endpoint at least twice, or set "auto-approve under $X" |
+| Over budget / "ask above" rule | ask | Your words |
+| **Learned trust** | pay | You approved this vendor+endpoint ≥ twice, or set "auto-approve under $X" |
 
-### Learning (`src/lib/guard/learn.ts`, `policy.ts`)
+### Learning — the rules *are* the product
 
-Memories are append-only facts: decisions, payees, rules and notes. Each one is written to Walrus as a readable sentence followed by JSON. On every payment, Allowance **recalls** the relevant memories and **derives** the policy from them. That means every decision can be traced to the memories behind it, and the UI shows which ones were used.
+Memories are append-only facts (decisions, payees, rules, notes), each written to Walrus as a readable sentence plus JSON. On every payment Allowance **recalls** the relevant memories and **derives** the policy fresh from them — so Walrus is the policy, not just a log, and every decision traces back to the memories behind it.
 
-Notes you type become rules:
+Plain-language notes become rules, via a deterministic parser widened by **Walrus `analyze()`** (so loose phrasing still works, while hard caps stay untouchable):
 
-- "auto-approve under 5 cents from them" → `auto_ok_under $0.05` for that vendor
-- "ask me above $0.20" → `always_ask_above $0.20`
-- "never pay them again" → `never_pay` for that vendor
-- "keep it under $2 a day" → `daily_budget $2`
-
-Denying a price spike doesn't revoke trust for normal prices: you said no to the spike, not to the vendor.
-
-## Tatum and Walrus usage
-
-**Tatum Sui RPC** (`src/lib/chain/tatum.ts`, mainnet gateway):
-
-| Call | Used for |
+| You type | Becomes |
 |---|---|
-| `suix_getBalance` | Can the agent afford it? |
-| `suix_queryTransactionBlocks` | Payee history (is this address new?) and recent activity for wallet reports |
-| `sui_dryRunTransactionBlock` | Exact simulation before signing |
-| `sui_executeTransactionBlock` | Send the USDC |
-| `sui_getTransactionBlock` | Vendor-side payment verification (x402 "facilitator" on Sui) |
-| `suix_getAllBalances` | The Chainlens paid API serves real portfolio data |
+| "auto-approve under 5 cents from them" | `auto_ok_under $0.05` for that vendor |
+| "ask me above $0.20" | `always_ask_above $0.20` |
+| "never pay them again" | `never_pay` for that vendor |
+| "keep it under two bucks a day" | `daily_budget $2` (extracted by `analyze()`) |
 
-The transaction builder (`@mysten/sui`) also resolves coins and gas through the same Tatum endpoint.
+Denying a price spike doesn't revoke trust for normal prices — you said no to the spike, not the vendor.
+
+## Tatum & Walrus integration
+
+**Tatum Sui RPC** (`src/lib/chain/tatum.ts`) — everything on-chain goes through Tatum's Sui **mainnet gateway**. Sui deprecated JSON-RPC network-wide mid-build, so the adapter uses `@mysten/sui`'s unified **`SuiGraphQLClient`** pointed at Tatum (`…/graphql`, `x-api-key`):
+
+| Via `SuiGraphQLClient` | Used for |
+|---|---|
+| `getReferenceGasPrice` | Gas price (health + preflight) |
+| `getBalance` / `listBalances` | Can the agent afford it? + real portfolio data for the Chainlens API |
+| `tx.build({ client })` | Coin selection & gas, over GraphQL |
+| `simulateTransaction` | **Exact dry-run** before signing |
+| `executeTransaction` | Send the USDC (GraphQL mutation) |
+| `getTransaction` / `waitForTransaction` | Vendor-side payment verification (the "facilitator" step on Sui) |
 
 **Walrus Memory** (`src/lib/memory/store.ts`):
 
-- `rememberAndWait` for every decision, payee and rule (returns a Walrus blob id, shown in the UI)
-- `recall` with three semantic queries before each payment
+- `rememberAndWait` for rules, payees and human decisions (returns a Walrus blob id, shown in the UI); `remember` (no-wait) for Allowance's own low-stakes logs so payments aren't delayed.
+- `recall` with semantic queries before each payment (rules recalled newest-first so an updated rule wins).
+- `analyze` to extract structured rules from free-text notes.
+- `rebuild` (the **"Sync from Walrus"** button) repopulates the local mirror from `listMemories()` — proving portability.
+
+## Multi-chain settlement
+
+Allowance's guard is **chain-agnostic**: the engine, the 402 flow and the dry-run semantics don't care which chain settles. Settlement lives behind a single `ChainAdapter` interface (`src/lib/chain/adapter.ts`):
+
+- **Sui mainnet via Tatum** (`chain/tatum.ts`) — the live, production path.
+- **Base / EVM via viem** (`chain/base-evm.ts`) — an **experimental, off-by-default** second settlement chain (USDC on Base), implementing the same interface, with offline unit tests. The public x402 ecosystem is largely on Base, so this is the bridge to guarding native x402 APIs. Not live-verified yet — enable with a funded Base wallet via `baseEvmFromEnv()`.
+
+## For reviewers — what to see, do, and check
+
+**Fastest look (≈2 minutes, no keys, fully offline):**
+
+```bash
+npm install && npm test        # 51 tests, incl. a full simulated week
+npm run dev                    # http://localhost:3000  (ALLOWANCE_MODE=sim)
+```
+In the UI: **Try it → Reset sim data → Simulate a week.** Watch the **asks-per-day chart fall 3 → 0** as memories grow. Then **Try it → Scam: look-alike "DataPulse"** (blocked) and **Real API: SUI spot price (PriceWire)**. Open any **Activity** row to see the **checks** and the **memories it recalled**.
+
+**Live proof (the deployed service):**
+
+```bash
+curl -i "https://allowance.185-7-81-139.sslip.io/api/vendors/pricewire/spot?token=sui"
+# → HTTP 402 with network "sui:mainnet", a USDC payTo, and a nonce — a real paywall on the public internet
+curl -s https://allowance.185-7-81-139.sslip.io/api/health   # { ok, tatum, walrus, agent }
+```
+A real mainnet payment opens on [suiscan](https://suiscan.xyz/mainnet) (e.g. digest `9yeQWKKRtu6pGkrDwKpK6F1uR6GzZppm1fJY5nQQPuTW`), showing −USDC from the agent → vendor, with a *"✓ verified by vendor"* badge.
+
+**Where each judging criterion lives:**
+
+| Criterion | What to check | Where |
+|---|---|---|
+| **Walrus & Tatum integration** | Memory *drives* decisions (not a log); 8+ distinct Sui RPC calls through Tatum | `memory/store.ts`, `guard/policy.ts`, `chain/tatum.ts` |
+| **Technical quality** | Pure decision engine, typed core, 51 tests, clean adapters, GraphQL port | `guard/engine.ts`, `test/`, `chain/` |
+| **Creativity** | Multisig-style checks (exact dry-run, look-alike & payee-change detection) applied to agent payments; a real API guarded by a 402 | `guard/engine.ts`, `vendors.ts`, `vendor-server.ts` |
+| **Presentation** | This README, the learning chart, the Memory-switch view, the demo video | UI + [DEMO-SCRIPT.md](./DEMO-SCRIPT.md) |
+
+> **The portability test (worth a look):** stop the server, delete `.data/allowance-live.json`, restart, and send a known request. It **still auto-pays** — because the rule came back from Walrus, not from disk.
 
 ## Running it
 
@@ -81,70 +136,47 @@ The transaction builder (`@mysten/sui`) also resolves coins and gas through the 
 npm install
 cp .env.example .env.local      # sim mode works with no keys
 npm run dev                     # http://localhost:3000
-npm test                        # 25 tests, including a full simulated week
+npm test                        # 51 tests, including a full simulated week
 ```
 
-**Sim mode** is fully offline: a simulated Sui ledger and local memory, the same code paths otherwise. Use it to build and rehearse.
+**Sim mode** is fully offline — a simulated Sui ledger and local memory, the same code paths otherwise. Use it to build and rehearse.
 
-**Live mode (required for the hackathon):**
+**Live mode (Sui mainnet):**
 
-1. Fill `.env.local` with:
-   - your Tatum key
-   - a fresh agent wallet holding a little SUI for gas and about $2 USDC
-   - a vendor wallet address
-   - your Walrus Memory key and account
+1. Fill `.env.local`: your Tatum key; a fresh agent wallet with a little SUI for gas and ~$2 USDC; a vendor wallet address; your Walrus Memory delegate key and account id. **Never commit `.env.local` or paste keys anywhere.**
+2. `npm run check:live` — verifies Tatum, wallet balances, and a Walrus write + recall.
+3. Set `ALLOWANCE_MODE=live` and `npm run dev`.
+4. **Simulate a week** writes 30+ memories to Walrus mainnet and makes ~30 real micro-payments (~$0.75 total).
 
-   Never commit `.env.local` or paste keys anywhere.
-2. Run `npm run check:live`. It checks Tatum, the wallet balances, and a Walrus write and recall.
-3. Set `ALLOWANCE_MODE=live` and run `npm run dev`.
-4. **Simulate a week** writes 30+ memories to Walrus mainnet and makes about 30 real micro-payments (around $0.75 total).
-
-### Demo scenarios ("Try it" tab)
-
-- Routine purchase
-- Price spike
-- Look-alike "DataPulse" scam vendor
-- Redirected invoice
-- Expensive report
-
-The "Simulate a week" button produces the learning chart: asks per day fall from 3 to 0.
+See [DEPLOY.md](./DEPLOY.md) to run it on your own server (Docker or pm2 + a reverse proxy).
 
 ## Use it from your own agent
 
-Point your agent at Allowance instead of letting it pay 402s directly. One call decides and (if your
-rules allow) pays, settling USDC on Sui and verifying the tx through Tatum:
+Point your agent at Allowance instead of letting it pay 402s directly. One call decides and (if your rules allow) pays — settling USDC on Sui and verifying via Tatum:
 
 ```js
-// Your agent wants some paid data. Ask Allowance to handle the payment.
 const res = await fetch("https://your-allowance/api/agent/run", {
   method: "POST",
   headers: { "content-type": "application/json", authorization: `Bearer ${ADMIN_TOKEN}` },
   body: JSON.stringify({
-    task: "why I need this",                       // shown to the human if it has to ask
-    path: "/api/vendors/chainlens/wallet-report?address=0x…", // any 402 resource on this host
+    task: "why I need this",                                   // shown to the human if it has to ask
+    path: "/api/vendors/chainlens/wallet-report?address=0x…",  // any 402 resource on this host
   }),
 });
 const out = await res.json();
-// out.status: "paid" (auto, with the data) · "pending" (asked you — approve in the dashboard/Telegram)
-//           · "blocked" (scam/duplicate/over-limit) · "free"
+// out.status: "paid" (auto, with the data) · "pending" (asked you) · "blocked" · "free"
 ```
 
-- **`paid`** → `out.data` is the result; `out.digest` opens on suiscan.
-- **`pending`** → Allowance asked you. Approve in the dashboard or from Telegram (`npm run telegram`);
-  it learns the rule so next time it just pays.
-- **`blocked`** → it refused (look-alike payee, redirected invoice, over your cap, duplicate…).
-
-The rules that drive these decisions live in **Walrus**, so they follow the agent to any machine. See
-`DEPLOY.md` to run this on your own server, and `FIELD-TEST.md` for real mainnet latency/cost numbers.
+The rules that drive these decisions live in **Walrus**, so they follow the agent to any machine.
 
 ## Project layout
 
 ```
 src/lib/x402.ts            402 protocol (requirements, X-PAYMENT, verify)
 src/lib/guard/             engine (decide), policy (derive from memories), learn (notes → rules), index (orchestration)
-src/lib/chain/             tatum.ts (live), sim.ts (offline)
+src/lib/chain/             adapter (interface), tatum.ts (Sui live), sim.ts (offline), base-evm.ts (Base, experimental)
 src/lib/memory/            Walrus + local adapters, fact text format
-src/lib/vendor-server.ts   the paid API (seller side)
+src/lib/vendor-server.ts   the paid API (seller side) + real upstream fetch (PriceWire)
 src/lib/agent.ts           the buyer agent
 src/app/api/*              HTTP routes
 src/components/Dashboard   UI
@@ -152,6 +184,9 @@ src/components/Dashboard   UI
 
 ## Honest notes
 
-- There's no mandated x402/MPP facilitator on Sui. The organisers confirmed that a standard HTTP 402 paywall, settled and verified through Tatum's Sui gateway, is the intended approach, and that's what this app does.
-- The vendors are run by this app so the demo is repeatable. Chainlens serves real Tatum data in live mode.
-- The default Walrus relayer sees memory plaintext. Use `MemWalManual` or a self-hosted relayer if that matters to you.
+- There's no mandated x402/MPP facilitator on Sui. The organisers confirmed a standard HTTP 402 paywall, settled and verified through Tatum's Sui gateway, is the intended approach — and that's what this app does.
+- The demo vendors are run by this app so the demo is repeatable; **PriceWire** fronts genuinely external APIs, and Chainlens serves real Tatum data in live mode.
+- The JSON store is single-process (fine for one instance with a persistent disk; not Vercel serverless). Base/EVM settlement is scaffolded but not yet live-verified.
+- The default Walrus relayer sees memory plaintext; use `MemWalManual` or a self-hosted relayer if that matters to you.
+
+_Built with Tatum (Sui mainnet RPC) and Walrus Memory._
