@@ -126,7 +126,7 @@ A real mainnet payment opens on [suiscan](https://suiscan.xyz/mainnet) (e.g. dig
 | **Walrus & Tatum integration** | Memory *drives* decisions (not a log); 8+ distinct Sui RPC calls through Tatum | `memory/store.ts`, `guard/policy.ts`, `chain/tatum.ts` |
 | **Technical quality** | Pure decision engine, typed core, 51 tests, clean adapters, GraphQL port | `guard/engine.ts`, `test/`, `chain/` |
 | **Creativity** | Multisig-style checks (exact dry-run, look-alike & payee-change detection) applied to agent payments; a real API guarded by a 402 | `guard/engine.ts`, `vendors.ts`, `vendor-server.ts` |
-| **Presentation** | This README, the learning chart, the Memory-switch view, the demo video | UI + [DEMO-SCRIPT.md](./DEMO-SCRIPT.md) |
+| **Presentation** | This README, the learning chart, the Memory-switch view, the demo video | UI + the live app |
 
 > **The portability test (worth a look):** stop the server, delete `.data/allowance-live.json`, restart, and send a known request. It **still auto-pays** — because the rule came back from Walrus, not from disk.
 
