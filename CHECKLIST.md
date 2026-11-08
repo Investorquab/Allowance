@@ -18,10 +18,10 @@ Source: the event page's "What to deliver" checklist and FAQ.
 - [ ] **Published blog post** covering: what it does, how it uses Tatum and Walrus, **how it learned over time** (use the "asks per day" chart)
 - [ ] **Working demo** (video, 2–3 min)
 - [x] **Public repo** with a clear README — https://github.com/Investorquab/Allowance (README covers problem, how-it-works, checks, setup)
-- [ ] Submission form fields ready:
-  - [x] Tatum dashboard **account ID**: `6aee59260b2c2aba7e28bd34`
-  - [ ] `MEMWAL_AGENT_ID` (the **delegate public key** under *Delegate keys*) — ⚠️ user supplied `MEMWAL_ACCOUNT_ID=0xb98dbb88c1ad4e8cf205fc9dc2c0be83a9cc5b4a39997a6d40b8db035f9d78ba` (the account object id), which is NOT the same field. Confirm the delegate public key from the Memory dashboard before submitting.
-  - [x] Repo URL — https://github.com/Investorquab/Allowance · [ ] demo URL or video · [ ] blog URL
+- [x] Submission form fields ready (IDs kept privately, out of this public repo):
+  - Tatum dashboard **account ID** — ✅ have it
+  - `MEMWAL_AGENT_ID` (the **delegate public key**, derived from `MEMWAL_PRIVATE_KEY`; distinct from `MEMWAL_ACCOUNT_ID`) — ✅ have it
+  - Repo URL — https://github.com/Investorquab/Allowance · [ ] demo URL or video · [ ] blog URL
 - [ ] Submitted before **10 Nov 17:00 UTC**
 
 ## B. Prizes we're targeting
