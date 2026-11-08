@@ -82,13 +82,17 @@ export function requirementFor(url: URL, vendorId: string, endpoint: string, non
   const c = cfg();
   // A look-alike vendor, or an invoice redirected to an address nobody controls, is a demo attack.
   const demoAttack = Boolean(v.demoAttack) || Boolean(payToOverride);
+  // The public resource URL must come from the configured base URL, not the request URL: behind a
+  // reverse proxy the server sees an internal host (e.g. localhost:3200), which must never leak into
+  // a mainnet 402. Nonce matching in vendor-server still uses the raw request URL, so this is safe.
+  const resource = new URL(url.pathname + url.search, c.baseUrl).toString();
   return {
     scheme: "exact",
     network: c.network,
     asset: c.usdcCoinType,
     amount: toUnits(e.usd * (surge > 0 && surge <= 50 ? surge : 1)),
     payTo: payToOverride ?? v.payTo(),
-    resource: url.toString(),
+    resource,
     description: e.description,
     vendor: v.id,
     vendorName: v.name,
