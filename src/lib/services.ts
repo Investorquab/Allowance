@@ -7,7 +7,14 @@ import { db } from "./store";
 
 const g = globalThis as unknown as { __allowanceSvc?: { key: string; chain: ChainAdapter; memory: MemoryStore } };
 
-/** Picks live (Tatum + Walrus, mainnet) or sim (offline) adapters from env. */
+/**
+ * Picks live (Tatum + Walrus, mainnet) or sim (offline) adapters from env.
+ *
+ * A second settlement chain (Base/EVM USDC) is implemented as `BaseEvmChain` in `chain/base-evm.ts`,
+ * built from the SAME `ChainAdapter` contract — proof the guard is chain-agnostic. It's experimental
+ * and NOT selected here (off by default), so the Sui path is untouched; wire it in via `baseEvmFromEnv()`
+ * once a Base wallet is funded and the flow is verified on-chain.
+ */
 export function services() {
   const c = getConfig();
   const key = `${c.mode}|${c.dataDir}`;

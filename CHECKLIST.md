@@ -79,7 +79,7 @@ Source: the event page's "What to deliver" checklist and FAQ.
 
 ### Stretch (only if time allows)
 - [x] **Telegram approvals** (reply approve/deny from your phone) — `scripts/telegram-bot.ts`, `npm run telegram`. Built + token-ready; needs `TELEGRAM_BOT_TOKEN` to run live.
-- [x] **Guard a real external API** behind the Sui-settled 402 — `pricewire` vendor fronts CoinGecko (spot price) and Frankfurter (FX); agent pays USDC on Sui (verified via Tatum) to unlock live third-party data. Base/EVM as a 2nd settlement chain still pending (stretch).
+- [x] **Guard a real external API** behind the Sui-settled 402 — `pricewire` vendor fronts CoinGecko (spot price) and Frankfurter (FX); agent pays USDC on Sui (verified via Tatum) to unlock live third-party data. Base/EVM is **scaffolded** as a 2nd settlement chain (`chain/base-evm.ts`, viem, same `ChainAdapter`, off by default, unit-tested — not live-verified).
 - [x] **Use Walrus `analyze()` to turn free-text notes into rules** — loose notes ("no more than two bucks a day") are extracted by Walrus `analyze()` (server-side, stored as owned memory) and normalized offline in sim; wired into approval notes and the Memory tab. Test: `test/analyze-rules.test.ts`.
 - [x] **Deployed for a live URL** — on the user's VPS (pm2 + Caddy), `https://allowance.185-7-81-139.sslip.io`. See `DEPLOY.md`.
 - [x] **Mainnet field-test report**: latency, Tatum call counts, 429s, gas cost per payment — see `FIELD-TEST.md` (12/12 live payments, 100%, ~33s/payment on free tier)
