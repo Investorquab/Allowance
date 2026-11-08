@@ -111,7 +111,7 @@ export default function Dashboard() {
           <div className={`text-3xl font-semibold nums leading-tight ${s.balanceError ? "text-block" : "text-accent"}`}>{s.balanceFmt ?? "—"}</div>
           <div className="flex flex-wrap justify-end items-center gap-1.5 mt-2 text-xs">
             <Badge tone={s.mode === "live" ? "ok" : "info"}>{s.mode === "live" ? "Live · Sui mainnet" : "Sim · offline"}</Badge>
-            <Badge tone="info">{s.mode === "live" ? "Walrus memory" : "Local memory"}</Badge>
+            {s.mode === "live" ? <HealthBadges s={s} /> : <Badge tone="info">Local memory</Badge>}
           </div>
         </div>
       </header>
@@ -130,7 +130,7 @@ export default function Dashboard() {
 
       {tab === "Overview" && <Overview s={s} busy={busy} act={act} goInbox={() => setTab("Inbox")} />}
       {tab === "Inbox" && <Inbox s={s} busy={busy} act={act} />}
-      {tab === "Activity" && <Activity s={s} />}
+      {tab === "Activity" && <Activity s={s} busy={busy} act={act} />}
       {tab === "Memory" && <Memory s={s} busy={busy} act={act} />}
       {tab === "Memory switch" && <MemorySwitch s={s} />}
       {tab === "Try it" && <TryIt s={s} busy={busy} act={act} />}
@@ -151,6 +151,20 @@ function Panel({ children, className = "" }: { children: React.ReactNode; classN
 }
 function Badge({ children, tone = "info" }: { children: React.ReactNode; tone?: keyof typeof LEVEL }) {
   return <span className={`inline-flex items-center rounded-md border px-2 py-0.5 ${LEVEL[tone]}`}>{children}</span>;
+}
+
+/** A12: live health at a glance — Tatum reads, Walrus memory, and whether the wallet can cover a payment.
+ * Derived from the state we already poll, so it costs no extra Tatum calls (A3). */
+function HealthBadges({ s }: { s: State }) {
+  let funded = false;
+  try { funded = s.balance != null && BigInt(s.balance) >= BigInt(s.limits.hardPerPayment); } catch { funded = false; }
+  return (
+    <>
+      <Badge tone={s.balanceError ? "block" : "ok"}>Tatum {s.balanceError ? "✗" : "✓"}</Badge>
+      <Badge tone={s.memoryError ? "ask" : "ok"}>Walrus {s.memoryError ? "degraded" : "✓"}</Badge>
+      <Badge tone={funded ? "ok" : "ask"}>{funded ? "Wallet funded ✓" : "Low balance"}</Badge>
+    </>
+  );
 }
 function Btn({ children, onClick, disabled, tone = "default" }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; tone?: "default" | "primary" | "danger" }) {
   const c = tone === "primary" ? "bg-accent text-bg hover:opacity-90" : tone === "danger" ? "border border-block/50 text-block hover:bg-block/10" : "border border-line hover:bg-panel-2";
@@ -312,7 +326,7 @@ function Inbox({ s, busy, act }: { s: State; busy: string | null; act: any }) {
   );
 }
 
-function Activity({ s }: { s: State }) {
+function Activity({ s, busy, act }: { s: State; busy: string | null; act: any }) {
   const [open, setOpen] = useState<string | null>(null);
   if (!s.activity.length) return <Panel><p className="text-muted text-sm">No activity yet.</p></Panel>;
   return (
@@ -340,6 +354,14 @@ function Activity({ s }: { s: State }) {
                     </div>
                   )}
                   {a.result !== undefined && <pre className="text-[11px] bg-bg border border-line rounded-lg p-2 overflow-auto max-h-40">{JSON.stringify(a.result, null, 2)}</pre>}
+                  {a.final === "failed" && (
+                    // A14: a payment failed (e.g. dry-run drifted, a 429, or an expired offer). Show the
+                    // reason and let the user retry — a fresh errand gets a new 402 nonce and dry-run.
+                    <div className="rounded-lg border border-block/40 bg-block/10 p-2 text-xs space-y-2">
+                      <p className="text-block">Payment failed. {a.summary?.replace(/^Payment failed:\s*/, "")}</p>
+                      {a.url && <Btn disabled={!!busy} onClick={() => act(`retry-${a.requestId}`, "/api/agent/run", { task: a.task, path: a.url })}>{busy === `retry-${a.requestId}` ? "Retrying…" : "Retry payment"}</Btn>}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
