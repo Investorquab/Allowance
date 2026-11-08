@@ -6,6 +6,8 @@ import { decide } from "./engine";
 import { factsFromHumanDecision, parseRules } from "./learn";
 import { derivePolicy } from "./policy";
 
+// A10: with demoDay > 0 the "day" is the demo day, not the calendar date — so "spent today" and the
+// daily cap count per demo day during "Simulate a week". Real usage keeps demoDay at 0 (calendar day).
 export const dayKey = (d = db()) => (d.demoDay > 0 ? `day-${d.demoDay}` : new Date().toISOString().slice(0, 10));
 
 export function spentToday(): bigint {
@@ -19,15 +21,14 @@ const activityDayKey = (a: ActivityItem) => (a.day > 0 ? `day-${a.day}` : a.at.s
 /** Recall everything relevant to this payment from memory (Walrus in live mode). */
 export async function recallFor(req: PaymentRequirement): Promise<StoredFact[]> {
   const { memory } = services();
-  const queries = [
-    `payments to ${req.vendorName} ${req.vendor} for ${req.endpoint}`,
-    `spending rules and limits set by the user`,
-    `${req.vendorName} ${req.vendor} is paid at address ${req.payTo}`,
-  ];
-  // Sequential on purpose: the Walrus relayer rate-limits concurrent recalls, and firing these three
-  // in parallel made the first auto-pay's tail latency much worse (see FIELD-TEST.md).
+  // Sequential on purpose: the Walrus relayer rate-limits concurrent recalls, and firing these in
+  // parallel made the first auto-pay's tail latency much worse (see FIELD-TEST.md).
   const seen = new Map<string, StoredFact>();
-  for (const q of queries) for (const f of await memory.recall(q, 30)) seen.set(f.blobId ?? f.id, f);
+  const add = (facts: StoredFact[]) => { for (const f of facts) seen.set(f.blobId ?? f.id, f); };
+  add(await memory.recall(`payments to ${req.vendorName} ${req.vendor} for ${req.endpoint}`, 30));
+  // A8: recall rules newest-first, so a rule the user changed later wins over an older one.
+  add(await memory.recall(`spending rules and limits set by the user`, 30, { sort: "recent" }));
+  add(await memory.recall(`${req.vendorName} ${req.vendor} is paid at address ${req.payTo}`, 30));
   return [...seen.values()];
 }
 
@@ -176,10 +177,12 @@ async function rememberAllowanceOutcome(req: PaymentRequest, outcome: "auto-paid
   const { memory } = services();
   const r = req.requirement;
   const lead = decision.checks.find((c) => c.level === "block")?.code;
+  // A7: allowance's own log entries are low-stakes — write without waiting so the payment isn't held
+  // up by the Walrus round-trip. Rules/payees/human decisions still use the default waiting write.
   await memory.remember({
     kind: "decision", vendor: r.vendor, endpoint: r.endpoint, payTo: r.payTo, amount: r.amount, outcome, by: "allowance",
     note: outcome === "blocked" ? `blocked: ${lead}` : undefined, at: new Date().toISOString(),
-  });
+  }, { wait: false });
 }
 
 export async function recordAutoPaid(req: PaymentRequest, decision: Decision) {

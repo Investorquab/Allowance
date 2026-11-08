@@ -6,8 +6,15 @@ import { decodeFact, describe, encodeFact } from "./facts";
 
 export interface MemoryStore {
   readonly name: string;
-  remember(fact: Fact): Promise<StoredFact>;
-  recall(query: string, limit?: number): Promise<StoredFact[]>;
+  /**
+   * Write a fact to memory. `wait` defaults to true (block until the Walrus blob id is known, so the
+   * fact is immediately recallable) — required for rules, payees and human decisions. Pass
+   * `{ wait: false }` for low-stakes logs (allowance's own auto-pay/blocked records) so a payment
+   * isn't held up by the write; the blob id is backfilled by the next sync/rebuild (A7).
+   */
+  remember(fact: Fact, opts?: { wait?: boolean }): Promise<StoredFact>;
+  /** `sort: "recent"` makes newest facts win (used for rules, so an updated limit beats an old one). */
+  recall(query: string, limit?: number, opts?: { sort?: "recent" | "relevance"; maxDistance?: number }): Promise<StoredFact[]>;
   /**
    * Turn a free-text note into candidate statements that `parseRules` can read. Live mode sends the
    * note to Walrus `analyze()` (server-side fact extraction, stored on Walrus in the background);
@@ -113,7 +120,13 @@ export class WalrusMemory implements MemoryStore {
     return this.mw.health();
   }
 
-  async remember(fact: Fact) {
+  async remember(fact: Fact, opts?: { wait?: boolean }) {
+    if (opts?.wait === false) {
+      // Fire-and-forget: don't block a payment on the write. The accepted result has no blob id yet
+      // (it's assigned after indexing), so mirror without one; the next sync/rebuild backfills it (A7).
+      await this.mw.remember(encodeFact(fact));
+      return mirror(fact);
+    }
     const r = await this.mw.rememberAndWait(encodeFact(fact));
     return mirror(fact, r.blob_id);
   }
@@ -136,9 +149,9 @@ export class WalrusMemory implements MemoryStore {
     return [...texts];
   }
 
-  async recall(query: string, limit = 20) {
+  async recall(query: string, limit = 20, opts?: { sort?: "recent" | "relevance"; maxDistance?: number }) {
     try {
-      const r = await this.mw.recall({ query, limit });
+      const r = await this.mw.recall({ query, limit, ...(opts?.sort ? { sort: opts.sort } : {}), ...(opts?.maxDistance ? { maxDistance: opts.maxDistance } : {}) });
       this.lastError = undefined;
       const out: StoredFact[] = [];
       for (const hit of r.results) {
