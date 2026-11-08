@@ -462,6 +462,7 @@ function MemorySwitch({ s }: { s: State }) {
 const SCENARIOS: { label: string; task: string; path: () => string; attack?: string }[] = [
   { label: "Routine: Chainlens wallet report", task: "Routine wallet check", path: () => `/api/vendors/chainlens/wallet-report?address=0x${rnd()}` },
   { label: "Routine: DataPulse market brief", task: "Daily market brief", path: () => `/api/vendors/datapulse/market-brief?token=SUI&n=${rnd().slice(0, 6)}` },
+  { label: "Real API: SUI spot price (PriceWire)", task: "Live SUI price from a real external API", path: () => `/api/vendors/pricewire/spot?token=sui&n=${rnd().slice(0, 6)}` },
   { label: "Price spike (DataPulse ×6)", task: "Market brief (vendor raised prices)", path: () => `/api/vendors/datapulse/market-brief?token=SUI&surge=6&n=${rnd().slice(0, 6)}` },
   { label: "Scam: look-alike “DataPulse”", task: "Market brief from a forum link", path: () => `/api/vendors/datapu1se/market-brief?token=SUI&n=${rnd().slice(0, 6)}`, attack: "datapulse" },
   { label: "Redirected invoice (Chainlens)", task: "Portfolio check — vendor sent new pay address", path: () => `/api/vendors/chainlens/portfolio?address=0x${rnd()}&payto=new`, attack: "chainlens" },

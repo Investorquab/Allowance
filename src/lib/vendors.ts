@@ -28,6 +28,7 @@ const cfg = () => getConfig();
 const live = () => cfg().mode === "live";
 const chainlensAddr = () => (live() ? cfg().vendorAddress : simAddress("vendor:chainlens"));
 const datapulseAddr = () => (live() ? process.env.VENDOR2_SUI_ADDRESS || cfg().vendorAddress : simAddress("vendor:datapulse"));
+const pricewireAddr = () => (live() ? cfg().vendorAddress : simAddress("vendor:pricewire"));
 
 export const VENDORS: Record<string, VendorDef> = {
   chainlens: {
@@ -47,6 +48,18 @@ export const VENDORS: Record<string, VendorDef> = {
     endpoints: {
       "market-brief": { usd: 0.02, description: "Short market brief for a token" },
       "deep-dive": { usd: 0.4, description: "Long research report" },
+    },
+  },
+  // A real third-party API, guarded behind our Sui-settled 402: the agent pays USDC on Sui (verified
+  // via Tatum), and in live mode `serve()` fetches genuinely external data (CoinGecko / Frankfurter).
+  // This is Allowance acting as the paywall in front of a real upstream — "guard a real API".
+  pricewire: {
+    id: "pricewire",
+    name: "PriceWire",
+    payTo: pricewireAddr,
+    endpoints: {
+      spot: { usd: 0.01, description: "Live crypto spot price + 24h change (real CoinGecko API)" },
+      fx: { usd: 0.005, description: "Live FX rate between two currencies (real Frankfurter API)" },
     },
   },
   // Scam vendor: same display name, pay-to address poisoned to look like DataPulse's.

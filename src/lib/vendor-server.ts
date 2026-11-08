@@ -82,6 +82,40 @@ async function serve(vendorId: string, endpoint: string, url: URL) {
       return { ...h, verdict: h.incomingTxCount >= 3 ? "established" : "new / little history" };
     }
   }
+
+  // PriceWire: a REAL external API, guarded behind our Sui-settled 402. Only the live server hits the
+  // network; sim/tests stay offline and deterministic.
+  if (vendorId === "pricewire") return servePriceWire(endpoint, url, config.mode === "live");
+
   const lines = [`${token}: momentum ${["mixed", "positive", "cooling"][token.length % 3]}`, "Funding flat; spot volume steady.", "Not investment advice."];
   return endpoint === "deep-dive" ? { token, report: Array(8).fill(lines).flat() } : { token, brief: lines };
+}
+
+/** Fetch live data from a real third-party API (live), or a deterministic stand-in (sim). */
+export async function servePriceWire(endpoint: string, url: URL, isLive: boolean) {
+  const seed = (s: string) => parseInt(crypto.createHash("md5").update(s).digest("hex").slice(0, 6), 16);
+  if (endpoint === "fx") {
+    const from = (url.searchParams.get("from") ?? "USD").toUpperCase();
+    const to = (url.searchParams.get("to") ?? "EUR").toUpperCase();
+    if (!isLive) return { from, to, rate: ((seed(from + to) % 200) + 50) / 100, date: "sim", source: "simulated" };
+    try {
+      const r = await fetch(`https://api.frankfurter.app/latest?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, { signal: AbortSignal.timeout(7000), headers: { accept: "application/json" } });
+      if (!r.ok) return { from, to, error: `upstream ${r.status}`, source: "Frankfurter API" };
+      const j = (await r.json()) as { rates?: Record<string, number>; date?: string };
+      return { from, to, rate: j.rates?.[to] ?? null, date: j.date ?? null, source: "Frankfurter API (live, guarded by Allowance x402 on Sui)" };
+    } catch (e) {
+      return { from, to, error: e instanceof Error ? e.message : String(e), source: "Frankfurter API" };
+    }
+  }
+  // default: "spot"
+  const id = (url.searchParams.get("token") ?? "sui").toLowerCase();
+  if (!isLive) return { token: id, usd: (seed(id) % 5000) / 100, change24h: ((seed(id + "c") % 400) - 200) / 100, source: "simulated" };
+  try {
+    const r = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(id)}&vs_currencies=usd&include_24hr_change=true`, { signal: AbortSignal.timeout(7000), headers: { accept: "application/json" } });
+    if (!r.ok) return { token: id, error: `upstream ${r.status}`, source: "CoinGecko API" };
+    const j = (await r.json()) as Record<string, { usd?: number; usd_24h_change?: number }>;
+    return { token: id, usd: j[id]?.usd ?? null, change24h: j[id]?.usd_24h_change ?? null, source: "CoinGecko API (live, guarded by Allowance x402 on Sui)" };
+  } catch (e) {
+    return { token: id, error: e instanceof Error ? e.message : String(e), source: "CoinGecko API" };
+  }
 }
