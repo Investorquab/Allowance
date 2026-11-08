@@ -29,7 +29,7 @@ const postWithAuth = (url: string, body?: unknown) => {
   });
 };
 
-const TABS = ["Overview", "Inbox", "Activity", "Memory", "Memory switch", "Try it"] as const;
+const TABS = ["Overview", "Inbox", "Activity", "Jobs", "Memory", "Memory switch", "Try it"] as const;
 type Tab = (typeof TABS)[number];
 
 const LEVEL = {
@@ -131,6 +131,7 @@ export default function Dashboard() {
       {tab === "Overview" && <Overview s={s} busy={busy} act={act} goInbox={() => setTab("Inbox")} />}
       {tab === "Inbox" && <Inbox s={s} busy={busy} act={act} />}
       {tab === "Activity" && <Activity s={s} busy={busy} act={act} />}
+      {tab === "Jobs" && <Jobs s={s} />}
       {tab === "Memory" && <Memory s={s} busy={busy} act={act} />}
       {tab === "Memory switch" && <MemorySwitch s={s} />}
       {tab === "Try it" && <TryIt s={s} busy={busy} act={act} />}
@@ -372,6 +373,54 @@ function Activity({ s, busy, act }: { s: State; busy: string | null; act: any })
   );
 }
 
+function Jobs({ s }: { s: State }) {
+  const [open, setOpen] = useState<string | null>(null);
+  const jobs = s.jobs ?? [];
+  if (!jobs.length)
+    return (
+      <Panel>
+        <p className="text-muted text-sm">No jobs yet. A job groups the API calls of one agent run, so you can see what the whole run spent and which step ran up the bill.</p>
+        <p className="text-muted text-sm mt-2">Run <span className="text-text">Simulate a week</span> (Overview), or send a <span className="text-text">Research run</span> from the Try it tab.</p>
+      </Panel>
+    );
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-muted text-xs px-1">Each job is one agent run. The total is what it spent across all its paid API calls; the costliest step is marked, so an unexpectedly big run is easy to trace.</p>
+      {jobs.map((j: any) => {
+        const isOpen = open === j.jobId;
+        return (
+          <Panel key={j.jobId} className="p-0">
+            <button onClick={() => setOpen(isOpen ? null : j.jobId)} className="w-full text-left px-4 py-3 hover:bg-panel-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="font-semibold">{j.label}</span>
+              <span className="text-muted text-xs">{j.day > 0 ? `Day ${j.day}` : new Date(j.at).toLocaleString()}</span>
+              <span className="ml-auto text-right">
+                <span className="text-lg font-semibold nums text-accent">{usd(j.spent)}</span>
+                <span className="text-muted text-xs ml-2">{j.paid}/{j.stepCount} paid{j.asked ? ` · ${j.asked} asked` : ""}{j.blocked ? ` · ${j.blocked} blocked` : ""}</span>
+              </span>
+            </button>
+            {isOpen && (
+              <ul className="divide-y divide-line border-t border-line">
+                {j.steps.map((st: any) => {
+                  const isTop = st.requestId === j.topStepRequestId;
+                  return (
+                    <li key={st.requestId} className={`px-4 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm ${isTop ? "bg-accent/[0.06]" : ""}`}>
+                      <span className={`text-[11px] rounded border px-1.5 ${FINAL[st.final]}`}>{st.final}</span>
+                      <span className="font-medium nums">{usd(st.amount)}</span>
+                      <span>{st.vendor} <span className="text-muted">· {st.endpoint}</span></span>
+                      {isTop && <span className="text-[11px] rounded border px-1.5 text-accent border-accent/40 bg-accent/10">ran up the bill</span>}
+                      <span className="basis-full text-xs text-muted">{st.task}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Panel>
+        );
+      })}
+    </div>
+  );
+}
+
 const KIND: Record<string, keyof typeof LEVEL> = { rule: "ok", decision: "info", payee: "info", note: "ask" };
 
 function Memory({ s, busy, act }: { s: State; busy: string | null; act: any }) {
@@ -512,7 +561,19 @@ function TryIt({ s, busy, act }: { s: State; busy: string | null; act: any }) {
             return <Btn key={x.label} disabled={!!busy || !!locked} onClick={async () => { setLast(x.label); await act(x.label, "/api/agent/run", { task: x.task, path }); }}>{busy === x.label ? "Working…" : locked ? `${x.label} (pay the real ${x.attack} first)` : x.label}</Btn>;
           })}
         </div>
-        {last && <p className="text-xs text-muted mt-3">Sent: {last}. Check Activity or Inbox.</p>}
+        <div className="mt-3 pt-3 border-t border-line">
+          <p className="text-muted text-xs mb-2">Or send a <span className="text-text">research run</span> — one job that makes several paid calls. See what the whole run spent, and which step ran up the bill, in the <span className="text-text">Jobs</span> tab.</p>
+          <Btn disabled={!!busy} onClick={async () => {
+            setLast("Research run (3 calls)");
+            const tasks = [
+              { task: "Research run · wallet A report", path: `/api/vendors/chainlens/wallet-report?address=0x${rnd()}` },
+              { task: "Research run · wallet B report", path: `/api/vendors/chainlens/wallet-report?address=0x${rnd()}` },
+              { task: "Research run · DEEP deep-dive report", path: `/api/vendors/datapulse/deep-dive?token=DEEP&n=${rnd().slice(0, 6)}` },
+            ];
+            await act("research", "/api/agent/run", { job: "Research run", tasks });
+          }}>{busy === "research" ? "Running…" : "Research run (3 paid calls)"}</Btn>
+        </div>
+        {last && <p className="text-xs text-muted mt-3">Sent: {last}. Check Activity, Jobs or Inbox.</p>}
       </Panel>
       {s.mode === "live" && (
         <Panel>

@@ -37,6 +37,38 @@ export async function dashboardState() {
   }
   const series = [...byDay.values()].map((r) => ({ ...r, spent: r.spent.toString() }));
 
+  // Per-job spend: group the API calls of one agent run so you can see what a run cost in total and
+  // which step ran up the bill. Newest job first; only activity tagged with a jobId is included.
+  const jobMap = new Map<string, {
+    jobId: string; label: string; at: string; day: number;
+    steps: { requestId: string; vendor: string; endpoint: string; task: string; amount: string; action: string; final: string }[];
+  }>();
+  for (const a of d.activity) {
+    if (!a.jobId) continue;
+    const j = jobMap.get(a.jobId) ?? { jobId: a.jobId, label: a.jobLabel ?? "Agent run", at: a.at, day: a.day, steps: [] };
+    if (a.at < j.at) j.at = a.at;
+    j.steps.push({ requestId: a.requestId, vendor: a.vendor, endpoint: a.endpoint, task: a.task, amount: a.amount, action: a.action, final: a.final });
+    jobMap.set(a.jobId, j);
+  }
+  const jobs = [...jobMap.values()]
+    .map((j) => {
+      const paidSteps = j.steps.filter((s) => s.final === "paid");
+      const spent = paidSteps.reduce((sum, s) => sum + BigInt(s.amount), 0n);
+      const top = paidSteps.reduce<(typeof paidSteps)[number] | null>((m, s) => (!m || BigInt(s.amount) > BigInt(m.amount) ? s : m), null);
+      return {
+        ...j,
+        // Costliest step first, so the one that ran up the bill is at the top.
+        steps: [...j.steps].sort((x, y) => (BigInt(y.amount) > BigInt(x.amount) ? 1 : BigInt(y.amount) < BigInt(x.amount) ? -1 : 0)),
+        spent: spent.toString(),
+        stepCount: j.steps.length,
+        paid: paidSteps.length,
+        asked: j.steps.filter((s) => s.action === "ask").length,
+        blocked: j.steps.filter((s) => s.action === "block").length,
+        topStepRequestId: top?.requestId ?? null,
+      };
+    })
+    .sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+
   const total = d.activity.length;
   const auto = d.activity.filter((a) => a.action === "pay").length;
   const facts = memory.all();
@@ -64,6 +96,7 @@ export async function dashboardState() {
       onWalrus: facts.filter((f) => f.blobId).length,
     },
     series,
+    jobs,
     pending: d.pending
       .filter((p) => !p.resolved)
       .map((p) => ({ ...p, request: d.requests[p.requestId], decision: d.decisions[p.requestId] })),

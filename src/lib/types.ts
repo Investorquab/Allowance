@@ -28,6 +28,9 @@ export interface PaymentRequest {
   requirement: PaymentRequirement;
   /** stable key of the request params, used for duplicate detection */
   fingerprint: string;
+  /** Groups the API calls of one agent run, so spend can be totalled per job (which step ran up the bill). */
+  jobId?: string;
+  jobLabel?: string;
 }
 
 export type Action = "pay" | "ask" | "block";

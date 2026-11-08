@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { fetchPaid, runTask, type AgentTask, type TaskOutcome } from "./agent";
+import { fetchPaid, newJobId, runTask, type AgentTask, type TaskOutcome } from "./agent";
 import { resolve } from "./guard";
 import { db, save } from "./store";
 
@@ -41,9 +41,11 @@ export async function runDay(opts: { autoAnswer: boolean }) {
   d.demoDay += 1;
   save();
   const day = d.demoDay;
+  // The day's calls are one job, so its total spend (and the step that ran up the bill) is visible.
+  const job = { id: newJobId(), label: `Day ${day} agent run` };
   const outcomes: TaskOutcome[] = [];
   for (const t of tasksForDay(day)) {
-    const o = await runTask(t);
+    const o = await runTask(t, "research-agent", job);
     outcomes.push(o);
     if (o.status === "pending" && opts.autoAnswer) {
       const a = persona(o.requestId);

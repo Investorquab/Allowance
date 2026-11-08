@@ -38,7 +38,14 @@ const fingerprintOf = (url: string) => {
   return crypto.createHash("sha256").update(u.pathname + "?" + u.searchParams.toString()).digest("hex").slice(0, 16);
 };
 
-export async function runTask(t: AgentTask, agent = "research-agent"): Promise<TaskOutcome> {
+/** A job groups the API calls of one agent run, so spend can be totalled per run. */
+export interface JobContext {
+  id: string;
+  label: string;
+}
+export const newJobId = () => `job_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+
+export async function runTask(t: AgentTask, agent = "research-agent", job?: JobContext): Promise<TaskOutcome> {
   const url = new URL(t.path, getConfig().baseUrl).toString();
   try {
     const first = await agentFetch(url);
@@ -46,7 +53,7 @@ export async function runTask(t: AgentTask, agent = "research-agent"): Promise<T
     const requirement = parsePaymentRequired(await first.json());
     if (!requirement) return { status: "error", error: "Vendor sent an unreadable 402" };
 
-    const { request, decision, prepared } = await evaluate({ agent, task: t.task, requirement, fingerprint: fingerprintOf(url) });
+    const { request, decision, prepared } = await evaluate({ agent, task: t.task, requirement, fingerprint: fingerprintOf(url), jobId: job?.id, jobLabel: job?.label });
     const act = db().activity.find((a) => a.requestId === request.id)!;
     act.url = url;
     save();
@@ -61,6 +68,18 @@ export async function runTask(t: AgentTask, agent = "research-agent"): Promise<T
   } catch (e) {
     return { status: "error", error: e instanceof Error ? e.message : String(e) };
   }
+}
+
+/**
+ * Run several API calls as one job, so the dashboard can show what the whole run spent and which
+ * step ran up the bill. Tasks run in order under a shared jobId; each auto-pays or lands in the inbox
+ * on its own, exactly as a single `runTask` would.
+ */
+export async function runJob(label: string, tasks: AgentTask[], agent = "research-agent") {
+  const job: JobContext = { id: newJobId(), label };
+  const outcomes: TaskOutcome[] = [];
+  for (const t of tasks) outcomes.push(await runTask(t, agent, job));
+  return { job, outcomes };
 }
 
 /** Retry the original call with proof of payment (after auto-pay, or after a human approved). */

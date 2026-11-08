@@ -23,6 +23,8 @@ export interface ActivityItem {
   requestId: string;
   at: string;
   day: number; // demo day index (0 = real time)
+  jobId?: string; // groups the API calls of one agent run (a "job")
+  jobLabel?: string;
   task: string;
   vendor: string;
   endpoint: string;

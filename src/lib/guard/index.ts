@@ -68,7 +68,7 @@ export async function compareMemory(requirement: PaymentRequirement, task: strin
   };
 }
 
-export async function evaluate(input: { agent: string; task: string; requirement: PaymentRequirement; fingerprint: string }) {
+export async function evaluate(input: { agent: string; task: string; requirement: PaymentRequirement; fingerprint: string; jobId?: string; jobLabel?: string }) {
   const { chain, config } = services();
   const req: PaymentRequest = { id: newId("req"), createdAt: new Date().toISOString(), ...input };
   const facts = await recallFor(req.requirement);
@@ -120,6 +120,8 @@ export async function evaluate(input: { agent: string; task: string; requirement
     requestId: req.id,
     at: req.createdAt,
     day: d.demoDay,
+    jobId: req.jobId,
+    jobLabel: req.jobLabel,
     task: req.task,
     vendor: req.requirement.vendorName,
     endpoint: req.requirement.endpoint,
