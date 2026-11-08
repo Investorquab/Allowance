@@ -57,6 +57,15 @@ high-value transactions:
 - **Demo-attack guard (live):** the built-in "attack" scenarios can _never_ send real USDC to an
   address nobody controls, even if you run them first.
 
+## Guarding a real API, not just a toy vendor
+
+It's easy to demo this against vendors you wrote yourself. So Allowance also guards a **real external
+API**: a vendor called *PriceWire* fronts live third-party services (crypto spot prices from CoinGecko,
+FX rates from Frankfurter). The agent pays a cent in USDC on Sui — dry-run, verified, logged like any
+other payment — and only then does the server fetch the live upstream and return it. Allowance is the
+**paywall and spending guard in front of any real API your agent depends on**, with the settlement on
+Sui and the verification through Tatum. The same guard would sit in front of a genuine x402 endpoint.
+
 ## Walrus Memory: the rules _are_ the product
 
 Most "memory" demos use memory as a log. Here it's the policy. On every decision Allowance **recalls
@@ -66,6 +75,11 @@ from what comes back. Walrus is the source of truth; the local file is just a ca
 When you approve a payment and add a note like _"auto-approve under 5 cents from them,"_ that becomes
 three memories on Walrus mainnet: the decision, the payee, and a **rule**. Next time, the same vendor
 auto-pays — no ask.
+
+And you don't have to phrase it like a machine. Write _"keep it under two bucks a day"_ and Walrus
+**`analyze()`** extracts the structured rule (a $2 daily budget) while storing your exact words as a
+memory you own. Loose, human phrasing in; an enforceable rule out — with a safety floor: an extracted
+rule can tighten what the agent pays, but it can **never** raise the hard caps.
 
 You can watch this happen: the **asks-per-day chart falls as the memories grow**. Day one, it asks
 about everything. By the end of the week it's handling almost everything itself, and every auto-pay
@@ -124,11 +138,20 @@ agent-payments bonus. The answer:
 So Allowance implements the 402 flow end to end: the vendor issues the 402, the agent pays in USDC on
 Sui, and the vendor **verifies the transaction on-chain through Tatum** before serving data.
 
+## Already shipped beyond the core
+
+- **Approve from your phone** — a Telegram bot pushes each ask to you with Approve/Deny buttons, plus
+  `/status`, `/rules` and a daily brief.
+- **Guard a real API** — the PriceWire vendor above, fronting live CoinGecko/Frankfurter data.
+- **Rules from loose words** — Walrus `analyze()` turning plain notes into enforceable rules.
+- **Deployed live** on a VPS (pm2 + Caddy), so the 402 paywall runs on the public internet.
+
 ## What's next
 
-- **Approve from your phone** — a Telegram bot that pushes each ask to you with Approve/Deny buttons.
 - **More chains** — settling the same 402 flow on Base (USDC via EIP-3009) so Allowance can guard the
-  wider x402 ecosystem, not just our own vendor.
+  wider x402 ecosystem (whose public APIs are mostly EVM today), not just Sui-settled vendors.
+- **A drop-in guard SDK** — so any agent can route its payments through Allowance in one line, which is
+  the path from "our demo" to something other builders actually run.
 
 ## Try it
 

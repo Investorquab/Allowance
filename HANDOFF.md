@@ -185,16 +185,16 @@ Tick these as you fix them. Add a test for each fix where possible.
 
   Add all three, plus tests.
   - **Done.** `handleVendor` now: rejects a header whose claimed `payer` ≠ the on-chain sender (`v.payer`); expires a 402 offer 10 min after `issuedAt` (drops the nonce, asks for a fresh 402); and enforces the "exact" scheme — overpayment (`v.amount ≠ req.amount`) is refused, not pocketed (underpayment was already caught). Tests: `test/vendor-verify.test.ts` (happy path, wrong payer, overpayment, expired offer).
-- [ ] **A7. Each payment is slow in live mode.** `rememberAndWait` runs for every auto-paid decision. **Fix:** for `by: "allowance"` facts, use `memwal.remember()` (no wait) and fill in the blob id later. Keep `rememberAndWait` for human decisions and rules, since those must be recallable at once.
-- [ ] **A8. Walrus recall relevance.** `recallFor` runs 3 semantic queries with `limit 30`. Check live that rules and payee facts actually come back for unrelated wording. If recall misses facts, the policy is wrong. Consider `sort: "recent"` for the rules query, or a `maxDistance` threshold. Log what was recalled in the decision (already shown in the UI as "Memories it recalled").
-- [ ] **A9. Concurrency.** The JSON file store is single-process and not transaction-safe. That's fine for localhost and the demo. If you deploy, use one instance with a persistent disk (Railway or Fly volume), **not** Vercel serverless.
-- [ ] **A10. Day accounting.** With `demoDay > 0`, "spent today" counts demo days, not calendar days. That's fine for the demo, but document it. Real usage should reset `demoDay` to 0.
+- [x] **A7. Each payment is slow in live mode.** **Done.** Allowance's own `by: "allowance"` auto-pay/blocked logs now use `memwal.remember()` (no wait) via `memory.remember(fact, { wait: false })`; `rememberAndWait` is kept for rules, payees and human decisions. Blob id backfills on the next sync/rebuild. (`memory/store.ts`, `guard/index.ts#rememberAllowanceOutcome`.)
+- [x] **A8. Walrus recall relevance.** **Done.** `recallFor` recalls the rules query with `sort: "recent"` (newest rule wins) in live mode; `recall()` gained an options arg (`sort`, `maxDistance`) that LocalMemory ignores, so sim/week-test behaviour is unchanged.
+- [x] **A9. Concurrency.** Documented (and honoured): deployed as a single pm2 instance on the VPS with `.data/` on local disk — not Vercel serverless. See `DEPLOY.md`.
+- [x] **A10. Day accounting.** Documented at `guard/index.ts#dayKey` (demo-day accounting under "Simulate a week"; real usage keeps `demoDay` at 0).
 
 ### P2: nice to have
-- [ ] A11. Use typed responses in `tatum.ts` instead of `any` (clears the lint warnings).
-- [ ] A12. Add `/api/health` checks to the dashboard header: Tatum ✓, Walrus ✓, wallet funded ✓.
-- [ ] A13. Add a "Rebuild from Walrus" button: delete the local mirror and repopulate it from `listMemories()`, which shows that memory really is portable.
-- [ ] A14. Error states in the UI for a failed payment, with a retry button.
+- [ ] A11. Use typed responses in `tatum.ts` instead of `any` (clears the lint warnings). *(Still open — cosmetic; lint warnings are tolerated.)*
+- [x] A12. **Done.** Dashboard header shows Tatum / Walrus / wallet-funded badges in live mode, derived from polled state (no extra Tatum calls).
+- [x] A13. **Done** via the Memory tab's **"Sync from Walrus"** button (`/api/memory/sync` → `WalrusMemory.rebuild`), which repopulates the local mirror from `listMemories()` + recall.
+- [x] A14. **Done.** A failed payment shows the reason and a **Retry** button in Activity; retry re-runs the errand for a fresh 402 nonce + dry-run.
 
 ---
 

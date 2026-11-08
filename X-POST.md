@@ -23,9 +23,25 @@ local DB, restarted, and it still auto-paid — recalled the rule from Walrus. P
 **4/** Every on-chain read, the dry-run, the execute and the vendor's verification go through
 @Tatum_io's Sui gateway. (Sui dropped JSON-RPC mid-build — ported the adapter to Tatum's GraphQL.)
 
-**5/** The asks-per-day chart falls as it learns. Day 1 it asks about everything; by end of week it
-handles ~83% on its own. Built for Total Recall 🐳🔗
+**5/** Not just toy vendors: it guards a **real** external API — PriceWire fronts live CoinGecko/FX
+data, and the agent pays a cent in USDC on Sui to unlock it. Allowance is the paywall for any API your
+agent uses.
+
+**6/** You don't have to phrase rules like a machine. Say "keep it under two bucks a day" and
+@WalrusFoundation `analyze()` turns it into an enforceable rule — while storing your own words as memory
+you own.
+
+**7/** The asks-per-day chart falls as it learns. Day 1 it asks about everything; by end of week it
+handles ~83% on its own. Live on Sui mainnet. Built for Total Recall 🐳🔗
 > Code: https://github.com/Investorquab/Allowance
+
+---
+
+## Reply to the "what are you building?" Walrus Sessions thread
+
+> An AI agent that pays your routine micro-invoices itself and asks before anything odd — and it
+> remembers every approve/deny, so you stop re-approving the same $0.01 API bill forever. Rules live in
+> @WalrusFoundation Memory; it settles in USDC on Sui via @Tatum_io.
 
 ---
 

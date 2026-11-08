@@ -23,16 +23,23 @@ Show the Overview with the balance in gold and "Handled without you".
 - Point at a pending item's **Checks** and **Memories it recalled** (empty — nothing learned yet).
 
 ### 0:35 — Approve with a rule, in plain words (25s)
-- Approve one with the note **"auto-approve under 5 cents from them."**
-> "I approve it and teach it a rule in plain English. That becomes memory on Walrus — the decision,
+- Approve one with a loose note like **"fine — keep it under two bucks a day from them."**
+> "I approve it and teach it a rule in plain English — note I didn't type a number, I said 'two bucks'.
+> Walrus `analyze()` extracts that into a real rule, and stores the note as memory I own: the decision,
 > the payee, and the rule."
-- Open **Memory** → show the new `walrus:<blob>` entries.
+- Open **Memory** → show the new `walrus:<blob>` entries, including the parsed daily-budget rule.
 
 ### 1:00 — Now it pays on its own (15s)
 - **Try it → Routine: Chainlens wallet report** again → it **auto-pays**.
 > "Same vendor, same shape — now it just pays, and cites the rule it remembered."
 
-### 1:15 — It blocks the sketchy (25s)
+### 1:15 — It guards a *real* external API (15s)
+- **Try it → Real API: SUI spot price (PriceWire)** → approve once, then run again → **auto-pays**.
+- Expand the paid row → show the live CoinGecko data in the result (`source: CoinGecko API (live…)`).
+> "This isn't a toy vendor — PriceWire fronts a real third-party API. The agent pays a cent in USDC on
+> Sui to unlock live market data. Allowance is the paywall guarding any real API your agent uses."
+
+### 1:30 — It blocks the sketchy (25s)
 - **Try it → Scam: look-alike DataPulse** → **blocked**.
 - **Try it → Redirected invoice** → **blocked**.
 > "A look-alike vendor, or a known vendor suddenly asking for a new address — blocked. It dry-runs
