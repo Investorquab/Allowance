@@ -29,6 +29,7 @@ Neither is how you'd hand money to a person you trust. You give them an **allowa
 - **Guards real third-party APIs** — not just demo vendors (see *PriceWire*, which fronts live CoinGecko / Frankfurter data behind the Sui-settled 402).
 - **Approvals from your phone** via a Telegram bot (`npm run telegram`): Approve/Deny buttons, `/status`, `/rules`, and a daily brief.
 - **Shows its work.** Every decision lists the checks it ran and the exact memories it recalled. A "Memory switch" view decides the same payment *with* and *without* memory, side by side.
+- **Totals spend per run.** Group an agent's calls into a **job** and see what the whole run cost across *all* its API calls — with the costliest step flagged — so a research run that blows past your estimate is one glance to trace.
 
 ## How it works
 
@@ -107,7 +108,7 @@ Allowance's guard is **chain-agnostic**: the engine, the 402 flow and the dry-ru
 **Fastest look (≈2 minutes, no keys, fully offline):**
 
 ```bash
-npm install && npm test        # 51 tests, incl. a full simulated week
+npm install && npm test        # 56 tests, incl. a full simulated week
 npm run dev                    # http://localhost:3000  (ALLOWANCE_MODE=sim)
 ```
 In the UI: **Try it → Reset sim data → Simulate a week.** Watch the **asks-per-day chart fall 3 → 0** as memories grow. Then **Try it → Scam: look-alike "DataPulse"** (blocked) and **Real API: SUI spot price (PriceWire)**. Open any **Activity** row to see the **checks** and the **memories it recalled**.
@@ -126,7 +127,7 @@ A real mainnet payment opens on [suiscan](https://suiscan.xyz/mainnet) (e.g. dig
 | Criterion | What to check | Where |
 |---|---|---|
 | **Walrus & Tatum integration** | Memory *drives* decisions (not a log); 8+ distinct Sui RPC calls through Tatum | `memory/store.ts`, `guard/policy.ts`, `chain/tatum.ts` |
-| **Technical quality** | Pure decision engine, typed core, 51 tests, clean adapters, GraphQL port | `guard/engine.ts`, `test/`, `chain/` |
+| **Technical quality** | Pure decision engine, typed core, 56 tests, clean adapters, GraphQL port | `guard/engine.ts`, `test/`, `chain/` |
 | **Creativity** | Multisig-style checks (exact dry-run, look-alike & payee-change detection) applied to agent payments; a real API guarded by a 402 | `guard/engine.ts`, `vendors.ts`, `vendor-server.ts` |
 | **Presentation** | This README, the learning chart, the Memory-switch view, the demo video | UI + the live app |
 
@@ -138,7 +139,7 @@ A real mainnet payment opens on [suiscan](https://suiscan.xyz/mainnet) (e.g. dig
 npm install
 cp .env.example .env.local      # sim mode works with no keys
 npm run dev                     # http://localhost:3000
-npm test                        # 51 tests, including a full simulated week
+npm test                        # 56 tests, including a full simulated week
 ```
 
 **Sim mode** is fully offline — a simulated Sui ledger and local memory, the same code paths otherwise. Use it to build and rehearse.
@@ -168,6 +169,8 @@ const res = await fetch("https://your-allowance/api/agent/run", {
 const out = await res.json();
 // out.status: "paid" (auto, with the data) · "pending" (asked you) · "blocked" · "free"
 ```
+
+Send several calls as **one job** — `{ job: "Research run", tasks: [{ task, path }, …] }` — and the **Jobs** tab totals what the whole run spent and marks the step that ran up the bill.
 
 The rules that drive these decisions live in **Walrus**, so they follow the agent to any machine.
 
